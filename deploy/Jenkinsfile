@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         TARGET_HOST = 'ubuntu@<YOUR-VPS-IP>'
-        TARGET_PATH = '/opt/cloud-storage'
+        TARGET_PATH = '~/BalStorage'
     }
 
     stages {
