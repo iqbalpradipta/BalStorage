@@ -53,6 +53,7 @@ pipeline {
                             ./ ${TARGET_HOST}:${TARGET_PATH}/
 
                         ssh -o StrictHostKeyChecking=no ${TARGET_HOST} "cd ${TARGET_PATH}/deploy && docker compose up -d --build --remove-orphans"
+                        ssh -o StrictHostKeyChecking=no ${TARGET_HOST} "ln -sf ${TARGET_PATH}/deploy/nginx/cloud-storage.conf /etc/nginx/sites-enabled/cloud-storage && nginx -t && systemctl reload nginx"
                     '''
                 }
             }
@@ -65,7 +66,7 @@ pipeline {
             steps {
                 sshagent(credentials: ['target-host-ssh']) {
                     sh '''
-                        sleep 15
+                        sleep 10
                         ssh -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -sf http://localhost:8000/api/v1/health && echo 'Backend OK' || echo 'Backend FAIL'"
                         ssh -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -sf http://localhost:3000/api/health && echo 'Frontend OK' || echo 'Frontend FAIL'"
                         ssh -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -sf -o /dev/null -w '%{http_code}' http://localhost/ && echo ' Nginx OK' || echo 'Nginx FAIL'"

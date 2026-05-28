@@ -16,8 +16,12 @@ fi
 echo "Building and starting services..."
 docker compose up -d --build --remove-orphans
 
+echo "Reloading nginx..."
+sudo ln -sf "$DEPLOY_DIR/nginx/cloud-storage.conf" /etc/nginx/sites-enabled/cloud-storage
+sudo nginx -t && sudo systemctl reload nginx
+
 echo "Waiting for services to be ready..."
-sleep 15
+sleep 10
 
 echo ""
 echo "=== Backend health ==="
@@ -26,7 +30,7 @@ curl -sf http://localhost:8000/api/v1/health && echo " [OK]" || echo " [FAIL]"
 echo "=== Frontend health ==="
 curl -sf http://localhost:3000/api/health && echo " [OK]" || echo " [FAIL]"
 
-echo "=== Nginx health ==="
+echo "=== Nginx ==="
 curl -sf -o /dev/null -w "%{http_code}" http://localhost/ && echo " [OK]" || echo " [FAIL]"
 
 echo ""
