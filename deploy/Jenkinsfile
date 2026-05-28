@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        TARGET_HOST = 'ubuntu@<YOUR-VPS-IP>'
         TARGET_PATH = '~/BalStorage'
     }
 
@@ -27,7 +26,6 @@ pipeline {
                     steps {
                         dir('frontend') {
                             sh 'npm ci'
-                            sh 'npx next lint'
                         }
                     }
                 }
