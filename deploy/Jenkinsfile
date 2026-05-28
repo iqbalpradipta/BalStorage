@@ -34,7 +34,7 @@ pipeline {
 
         stage('Deploy') {
             when {
-                branch 'master'
+                branch 'main'
             }
             steps {
                 sshagent(credentials: ['target-host-ssh']) {
@@ -59,7 +59,7 @@ pipeline {
 
         stage('Verify') {
             when {
-                branch 'master'
+                branch 'main'
             }
             steps {
                 sshagent(credentials: ['target-host-ssh']) {
