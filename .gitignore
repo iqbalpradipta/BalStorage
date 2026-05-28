@@ -1,0 +1,35 @@
+# Dependencies
+backend/vendor/
+frontend/node_modules/
+
+# Build output
+*.exe
+server
+.next/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.development
+
+# Uploads (temporary files)
+backend/uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test coverage
+*.out
+coverage/
