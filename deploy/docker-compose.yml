@@ -1,21 +1,4 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: cloud-storage-db
-    restart: unless-stopped
-    env_file:
-      - .env.production
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   backend:
     build:
       context: ..
@@ -28,9 +11,8 @@ services:
       - uploads:/app/uploads
     networks:
       - app-network
-    depends_on:
-      postgres:
-        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/v1/health"]
       interval: 30s
@@ -74,7 +56,6 @@ services:
       - frontend
 
 volumes:
-  pgdata:
   uploads:
 
 networks:
