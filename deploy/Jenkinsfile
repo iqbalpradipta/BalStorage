@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+
+    environment {
+        TARGET_HOST = 'cloud-storage-server'
+        TARGET_PATH = '/opt/cloud-storage'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Backend') {
+                    steps {
+                        dir('backend') {
+                            sh 'go vet ./...'
+                            sh 'go test ./... -v -count=1'
+                        }
+                    }
+                }
+                stage('Frontend') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm ci'
+                            sh 'npx next lint'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'master'
+            }
+            steps {
+                script {
+                    sh """
+                        ssh ${TARGET_HOST} 'mkdir -p ${TARGET_PATH}'
+                        rsync -avz --delete \\
+                            --exclude='.git' \\
+                            --exclude='node_modules' \\
+                            --exclude='.next' \\
+                            --exclude='*.exe' \\
+                            --exclude='backend/uploads/*' \\
+                            --exclude='.env' \\
+                            ./ ${TARGET_HOST}:${TARGET_PATH}/
+                    """
+                }
+
+                withCredentials([
+                    string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'postgres-password', variable: 'POSTGRES_PASSWORD'),
+                    string(credentialsId: 'discord-bot-token', variable: 'DISCORD_BOT_TOKEN'),
+                    string(credentialsId: 'discord-guild-id', variable: 'DISCORD_GUILD_ID'),
+                    string(credentialsId: 'discord-category-id', variable: 'DISCORD_STORAGE_CATEGORY_ID')
+                ]) {
+                    sh """
+                        ssh ${TARGET_HOST} bash -c '
+                            cd ${TARGET_PATH}/deploy
+                            [ -f .env.production ] || cp .env.production.example .env.production
+                            sed -i "s|<generate-strong-password>|${POSTGRES_PASSWORD}|g" .env.production
+                            sed -i "s|<generate-64-char-random-string>|${JWT_SECRET}|g" .env.production
+                            sed -i "s|<bot-token>|${DISCORD_BOT_TOKEN}|g" .env.production
+                            sed -i "s|<guild-id>|${DISCORD_GUILD_ID}|g" .env.production
+                            sed -i "s|<category-id>|${DISCORD_STORAGE_CATEGORY_ID}|g" .env.production
+                            docker compose up -d --build --remove-orphans
+                        '
+                    """
+                }
+            }
+        }
+
+        stage('Verify') {
+            when {
+                branch 'master'
+            }
+            steps {
+                sh """
+                    sleep 15
+                    ssh ${TARGET_HOST} 'curl -sf http://localhost:8000/api/v1/health && echo "Backend OK" || echo "Backend FAIL"'
+                    ssh ${TARGET_HOST} 'curl -sf http://localhost:3000/api/health && echo "Frontend OK" || echo "Frontend FAIL"'
+                    ssh ${TARGET_HOST} 'curl -sf -o /dev/null -w "%{http_code}" http://localhost/ && echo " Nginx OK" || echo "Nginx FAIL"'
+                """
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo 'Deployment failed. Check Jenkins logs for details.'
+        }
+    }
+}

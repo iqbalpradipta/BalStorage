@@ -1,0 +1,7 @@
+*.exe
+.env*
+!*.env.example
+uploads/*
+.git
+.vscode/
+.idea/
