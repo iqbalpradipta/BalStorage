@@ -36,7 +36,7 @@ export function FolderCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 bg-background/50 hover:bg-background border border-border/10 transition-opacity"
+              className="h-8 w-8 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 bg-background/50 hover:bg-background border border-border/10 transition-opacity cursor-pointer"
             >
               <MoreVertical className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </Button>

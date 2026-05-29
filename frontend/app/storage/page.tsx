@@ -162,7 +162,7 @@ export default function StoragePage() {
       {/* Directory Content */}
       {loading ? (
         // Grid Loading States
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
@@ -195,7 +195,7 @@ export default function StoragePage() {
         </div>
       ) : (
         // Folders Grid View
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10">
           {filteredFolders.map((folder) => (
             <FolderCard
               key={folder.id}

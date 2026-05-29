@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, User, Settings, FolderClosed, LayoutDashboard } from "lucide-react";
+import { LogOut, User, Settings, FolderClosed, LayoutDashboard, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +15,11 @@ import { useUserFromCookie } from "@/hooks/useUserFromCookie";
 import { authService } from "@/services/auth";
 import { customToast } from "@/lib/toast";
 
-export function Header() {
+interface HeaderProps {
+  onToggleSidebar?: () => void;
+}
+
+export function Header({ onToggleSidebar }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useUserFromCookie();
@@ -78,8 +82,20 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border/40 bg-background/60 backdrop-blur-md px-6 sticky top-0 z-20">
-      <div className="flex items-center">{getPageTitle()}</div>
+    <header className="flex h-14 items-center justify-between border-b border-border/40 bg-background/60 backdrop-blur-md px-4 sm:px-6 sticky top-0 z-20">
+      <div className="flex items-center gap-3">
+        {onToggleSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleSidebar}
+            className="h-9 w-9 rounded-xl hover:bg-muted/50 md:hidden cursor-pointer shrink-0"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        {getPageTitle()}
+      </div>
       
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

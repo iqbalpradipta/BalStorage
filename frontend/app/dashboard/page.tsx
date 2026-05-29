@@ -202,7 +202,7 @@ export default function DashboardPage() {
 
       {loading ? (
         // Loading State Shimmers
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-28 rounded-2xl bg-card animate-pulse border border-border/40" />
           ))}
@@ -212,7 +212,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Stats Widgets */}
-          <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {/* Total Storage Widget */}
             <div className="relative rounded-2xl border border-border/40 bg-card p-6 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
