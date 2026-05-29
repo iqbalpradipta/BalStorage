@@ -70,9 +70,9 @@ pipeline {
                 ]) {
                     sh '''
                         sleep 10
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -sf http://localhost:8000/api/v1/health && echo 'Backend OK' || echo 'Backend FAIL'"
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -sf http://localhost:3000/api/health && echo 'Frontend OK' || echo 'Frontend FAIL'"
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -sf -H 'Host: storage.iqbalpradipta.my.id' -o /dev/null -w '%{http_code}' http://localhost/ && echo ' Nginx OK' || echo 'Nginx FAIL'"
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS http://localhost:8000/api/v1/health && echo 'Backend OK'"
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS http://localhost:3000/api/health && echo 'Frontend OK'"
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS --resolve storage.iqbalpradipta.my.id:443:127.0.0.1 -o /dev/null https://storage.iqbalpradipta.my.id/ && echo 'Nginx HTTPS OK'"
                     '''
                 }
             }
