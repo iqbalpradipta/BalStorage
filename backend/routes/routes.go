@@ -23,8 +23,8 @@ func Register(e *echo.Echo, db *gorm.DB) {
 	authService := services.NewAuthService(userRepo)
 	authController := controllers.NewAuthController(authService)
 
-	api.POST("/register", authController.Register)
-	api.POST("/login", authController.Login)
+	api.POST("/register", authController.Register, middlewares.RateLimitByIP(3, 3))
+	api.POST("/login", authController.Login, middlewares.RateLimitByIP(10, 5))
 
 	// Shared dependencies
 	discordSvc := services.NewDiscordService(config.Discord)

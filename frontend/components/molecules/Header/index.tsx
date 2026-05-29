@@ -34,10 +34,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const getPageTitle = () => {
     if (pathname.startsWith("/dashboard")) {
       return (
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <LayoutDashboard className="h-4 w-4 text-primary" />
-          <span>Console</span>
-          <span className="text-border">/</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground animate-in fade-in duration-200">
+          <LayoutDashboard className="h-4 w-4 text-primary md:block hidden" />
+          <span className="md:inline hidden">Console</span>
+          <span className="text-border md:inline hidden">/</span>
           <span className="text-foreground font-semibold">Dashboard</span>
         </div>
       );
@@ -46,34 +46,36 @@ export function Header({ onToggleSidebar }: HeaderProps) {
       const parts = pathname.split("/");
       const isSub = parts.length > 2;
       return (
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <FolderClosed className="h-4 w-4 text-primary" />
-          <span className="hover:text-foreground cursor-pointer" onClick={() => router.push("/storage")}>Storage</span>
-          {isSub && (
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground animate-in fade-in duration-200">
+          <FolderClosed className="h-4 w-4 text-primary md:block hidden" />
+          <span className="hover:text-foreground cursor-pointer md:inline hidden" onClick={() => router.push("/storage")}>Storage</span>
+          {isSub ? (
             <>
-              <span className="text-border">/</span>
-              <span className="text-foreground font-semibold">Folder Details</span>
+              <span className="text-border md:inline hidden">/</span>
+              <span className="text-foreground font-semibold">Details</span>
             </>
+          ) : (
+            <span className="text-foreground font-semibold md:hidden">Storage</span>
           )}
         </div>
       );
     }
     if (pathname.startsWith("/settings")) {
       return (
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Settings className="h-4 w-4 text-primary" />
-          <span>Console</span>
-          <span className="text-border">/</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground animate-in fade-in duration-200">
+          <Settings className="h-4 w-4 text-primary md:block hidden" />
+          <span className="md:inline hidden">Console</span>
+          <span className="text-border md:inline hidden">/</span>
           <span className="text-foreground font-semibold">Settings</span>
         </div>
       );
     }
     if (pathname.startsWith("/profile")) {
       return (
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <User className="h-4 w-4 text-primary" />
-          <span>Console</span>
-          <span className="text-border">/</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground animate-in fade-in duration-200">
+          <User className="h-4 w-4 text-primary md:block hidden" />
+          <span className="md:inline hidden">Console</span>
+          <span className="text-border md:inline hidden">/</span>
           <span className="text-foreground font-semibold">Profile</span>
         </div>
       );

@@ -35,12 +35,22 @@ func HandleError(c echo.Context, err error) error {
 		return JSON(c, http.StatusConflict, false, err.Error(), nil)
 	case errors.Is(err, utils.ErrForbidden):
 		return JSON(c, http.StatusForbidden, false, err.Error(), nil)
+	case errors.Is(err, utils.ErrInvalidName),
+		errors.Is(err, utils.ErrInvalidEmail),
+		errors.Is(err, utils.ErrInvalidPassword),
+		errors.Is(err, utils.ErrInvalidPhone):
+		return JSON(c, http.StatusBadRequest, false, err.Error(), nil)
+	case errors.Is(err, utils.ErrInvalidCredentials):
+		return JSON(c, http.StatusUnauthorized, false, err.Error(), nil)
+	case errors.Is(err, utils.ErrWeakJWTSecret):
+		log.Printf("configuration error: %v", err)
+		return JSON(c, http.StatusInternalServerError, false, "internal server error", nil)
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return JSON(c, http.StatusNotFound, false, "resource not found", nil)
 	case errors.Is(err, echo.ErrUnauthorized):
 		return JSON(c, http.StatusUnauthorized, false, "unauthorized", nil)
 	default:
 		log.Printf("internal error: %v", err)
-		return JSON(c, http.StatusInternalServerError, false, err.Error(), nil)
+		return JSON(c, http.StatusInternalServerError, false, "internal server error", nil)
 	}
 }

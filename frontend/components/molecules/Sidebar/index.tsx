@@ -53,16 +53,22 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border/30 h-14 shrink-0">
         {!collapsed ? (
           <Link href="/dashboard" onClick={() => setMobileOpen?.(false)} className="flex items-center gap-2 group">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform duration-200">
-              <Database className="h-4 w-4" />
-            </div>
+            <img 
+              src="/Logo-bg-removebg-preview.png" 
+              alt="BalStorage Logo" 
+              className="h-8 w-8 object-contain group-hover:scale-105 transition-transform duration-200"
+            />
             <span className="font-bold text-base tracking-wide bg-linear-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
               BalStorage
             </span>
           </Link>
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20 mx-auto">
-            <Database className="h-4 w-4" />
+          <div className="flex h-8 w-8 items-center justify-center mx-auto">
+            <img 
+              src="/Logo-bg-removebg-preview.png" 
+              alt="BalStorage Logo" 
+              className="h-8 w-8 object-contain"
+            />
           </div>
         )}
         <Button

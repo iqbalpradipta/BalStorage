@@ -34,7 +34,13 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error: AxiosError<{ message?: string }>) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || "";
+    const isAuthRequest =
+      requestUrl.includes("v1/login") || requestUrl.includes("v1/register");
+    const isLoginPage =
+      typeof window !== "undefined" && window.location.pathname === "/login";
+
+    if (error.response?.status === 401 && !isAuthRequest && !isLoginPage) {
       Cookies.remove("auth_token");
       Cookies.remove("user");
       if (typeof window !== "undefined") {

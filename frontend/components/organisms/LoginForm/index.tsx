@@ -20,7 +20,10 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      customToast.warning("Missing Credentials", "Please enter both your email and password.");
+      customToast.warning(
+        "Missing Credentials",
+        "Please enter both your email and password.",
+      );
       return;
     }
 
@@ -31,10 +34,16 @@ export function LoginForm() {
         customToast.success("Welcome back!", "Authentication successful.");
         router.push("/dashboard");
       } else {
-        customToast.error("Login Failed", result.error || "Please verify your credentials.");
+        customToast.error(
+          "Login Failed",
+          result.error || "Please verify your credentials.",
+        );
       }
     } catch (err: any) {
-      customToast.error("Error", err.message || "An unexpected error occurred.");
+      customToast.error(
+        "Error",
+        err.message || "An unexpected error occurred.",
+      );
     } finally {
       setLoading(false);
     }
@@ -44,11 +53,15 @@ export function LoginForm() {
     <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md shadow-xl shadow-primary/5">
       <div className="mb-8 text-center">
         {/* Unified primary-tinted icon */}
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
-          <Database className="h-6 w-6" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+          <img
+            src="/Logo-bg-removebg-preview.png"
+            alt="BalStorage Logo"
+            className="h-16 w-16 object-contain"
+          />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          BalStorage
+          Welcome !
         </h1>
         <p className="mt-1.5 text-xs text-muted-foreground">
           Sign in to access your cloud developer console
@@ -58,7 +71,10 @@ export function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email Field */}
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-xs font-semibold text-foreground/80">
+          <Label
+            htmlFor="email"
+            className="text-xs font-semibold text-foreground/80"
+          >
             Email Address
           </Label>
           <div className="relative">
@@ -77,7 +93,10 @@ export function LoginForm() {
 
         {/* Password Field */}
         <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-xs font-semibold text-foreground/80">
+          <Label
+            htmlFor="password"
+            className="text-xs font-semibold text-foreground/80"
+          >
             Password
           </Label>
           <div className="relative">
@@ -106,8 +125,8 @@ export function LoginForm() {
         </div>
 
         {/* Cohesive Solid Button */}
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           className="w-full h-10 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 shadow-md shadow-primary/10 active:scale-[0.98] transition-all mt-2 cursor-pointer text-xs"
           disabled={loading}
         >
@@ -118,7 +137,10 @@ export function LoginForm() {
       {/* Footer Registration Link */}
       <div className="mt-6 text-center text-xs text-muted-foreground border-t border-border/30 pt-4">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-semibold text-primary hover:underline transition-all">
+        <Link
+          href="/register"
+          className="font-semibold text-primary hover:underline transition-all"
+        >
           Create account
         </Link>
       </div>

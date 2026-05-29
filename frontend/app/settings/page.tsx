@@ -14,6 +14,13 @@ interface DiagnosticResult {
   latency: number;
 }
 
+interface HealthResponse {
+  success: boolean;
+  data?: {
+    database?: string;
+  };
+}
+
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult>({
@@ -30,17 +37,15 @@ export default function SettingsPage() {
     const start = performance.now();
     
     try {
-      // Call the health check endpoint
-      const response = await fetch("http://localhost:8080/api/v1/health");
+      const data = await apiClient.get<HealthResponse>("v1/health");
       const end = performance.now();
       const latencyMs = Math.round(end - start);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (data.success) {
         setDiagnostic({
           running: false,
           success: true,
-          dbOk: data.success || false,
+          dbOk: data.data?.database === "ok",
           latency: latencyMs,
         });
         customToast.success("Diagnostics Complete", "All systems are operational.");
@@ -63,10 +68,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-300">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground bg-linear-to-r from-primary to-primary/80 bg-clip-text">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground bg-linear-to-r from-primary to-primary/80 bg-clip-text">
           System Settings
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Customize your workspace appearance and run real-time hardware diagnostics
         </p>
       </div>

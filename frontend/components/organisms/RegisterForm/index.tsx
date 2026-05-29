@@ -50,8 +50,12 @@ export function RegisterForm() {
     <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md shadow-xl shadow-primary/5">
       <div className="mb-8 text-center">
         {/* Unified primary-tinted icon */}
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
-          <Database className="h-6 w-6" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+          <img 
+            src="/Logo-bg-removebg-preview.png" 
+            alt="BalStorage Logo" 
+            className="h-16 w-16 object-contain"
+          />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Create Account

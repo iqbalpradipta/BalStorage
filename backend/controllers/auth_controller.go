@@ -2,10 +2,13 @@ package controllers
 
 import (
 	"net/http"
+	"net/mail"
+	"strings"
 
 	"balStorage/backend/helpers"
 	"balStorage/backend/model"
 	"balStorage/backend/services"
+	"balStorage/backend/utils"
 
 	"github.com/labstack/echo/v4"
 )
@@ -24,8 +27,12 @@ func (c *AuthController) Register(ctx echo.Context) error {
 		return helpers.JSON(ctx, http.StatusBadRequest, false, "invalid request body", nil)
 	}
 
-	if input.Email == "" || input.Password == "" || input.Name == "" {
-		return helpers.JSON(ctx, http.StatusBadRequest, false, "name, email, and password are required", nil)
+	input.Name = strings.TrimSpace(input.Name)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+	input.Phone = strings.TrimSpace(input.Phone)
+
+	if err := validateRegisterInput(input); err != nil {
+		return helpers.HandleError(ctx, err)
 	}
 
 	user, err := c.authService.Register(input)
@@ -42,8 +49,10 @@ func (c *AuthController) Login(ctx echo.Context) error {
 		return helpers.JSON(ctx, http.StatusBadRequest, false, "invalid request body", nil)
 	}
 
-	if input.Email == "" || input.Password == "" {
-		return helpers.JSON(ctx, http.StatusBadRequest, false, "email and password are required", nil)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+
+	if err := validateLoginInput(input); err != nil {
+		return helpers.HandleError(ctx, err)
 	}
 
 	user, token, err := c.authService.Login(input)
@@ -66,4 +75,35 @@ func (c *AuthController) Profile(ctx echo.Context) error {
 	}
 
 	return helpers.JSON(ctx, http.StatusOK, true, "profile fetched", user)
+}
+
+func validateRegisterInput(input model.RegisterInput) error {
+	if len(input.Name) < 2 || len(input.Name) > 80 {
+		return utils.ErrInvalidName
+	}
+	if !isValidEmail(input.Email) {
+		return utils.ErrInvalidEmail
+	}
+	if len(input.Password) < 8 || len(input.Password) > 72 {
+		return utils.ErrInvalidPassword
+	}
+	if len(input.Phone) > 32 {
+		return utils.ErrInvalidPhone
+	}
+	return nil
+}
+
+func validateLoginInput(input model.LoginInput) error {
+	if !isValidEmail(input.Email) || input.Password == "" {
+		return utils.ErrInvalidCredentials
+	}
+	return nil
+}
+
+func isValidEmail(email string) bool {
+	if len(email) > 254 || strings.Count(email, "@") != 1 {
+		return false
+	}
+	address, err := mail.ParseAddress(email)
+	return err == nil && address.Address == email
 }

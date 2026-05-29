@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -39,10 +40,16 @@ func JWTAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			secret := utils.GetEnv("JWT_SECRET", "default_secret")
+			secret := utils.GetEnv("JWT_SECRET", "")
+			if len(strings.TrimSpace(secret)) < 32 {
+				return nil, utils.ErrWeakJWTSecret
+			}
 			return []byte(secret), nil
 		})
 
+		if errors.Is(err, utils.ErrWeakJWTSecret) {
+			return helpers.JSON(c, http.StatusInternalServerError, false, "internal server error", nil)
+		}
 		if err != nil || !token.Valid {
 			return helpers.JSON(c, http.StatusUnauthorized, false, "invalid or expired token", nil)
 		}
@@ -52,9 +59,16 @@ func JWTAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			return helpers.JSON(c, http.StatusUnauthorized, false, "invalid token claims", nil)
 		}
 
-		c.Set("user_id", claims["sub"])
-		c.Set("email", claims["email"])
-		c.Set("role", claims["role"])
+		userID, ok := claims["sub"].(string)
+		if !ok || userID == "" {
+			return helpers.JSON(c, http.StatusUnauthorized, false, "invalid token claims", nil)
+		}
+		email, _ := claims["email"].(string)
+		role, _ := claims["role"].(string)
+
+		c.Set("user_id", userID)
+		c.Set("email", email)
+		c.Set("role", role)
 
 		return next(c)
 	}

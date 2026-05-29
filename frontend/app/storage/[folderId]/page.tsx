@@ -236,12 +236,12 @@ export default function FolderDetailPage() {
             <ArrowLeft className="h-4.5 w-4.5" />
           </Button>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               <span>Directories</span>
               <span>/</span>
               <span className="text-primary truncate">{folder?.name || "Loading..."}</span>
             </div>
-            <h1 className="text-2xl font-extrabold text-foreground truncate mt-1">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-foreground truncate mt-1">
               {folder?.name || "Loading Directory Details..."}
             </h1>
           </div>

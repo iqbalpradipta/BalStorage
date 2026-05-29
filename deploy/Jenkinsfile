@@ -55,6 +55,33 @@ pipeline {
                             --exclude=deploy/.env.production \
                             ./ ${TARGET_HOST}:${TARGET_PATH}/
 
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "cd ${TARGET_PATH}/deploy && bash -s" <<'ENSURE_ENV'
+                        set -euo pipefail
+
+                        if [ ! -f .env.production ]; then
+                            cp .env.production.example .env.production
+                            echo "ERROR: deploy/.env.production was created from template. Fill DB and Discord secrets, then rerun deploy."
+                            exit 1
+                        fi
+
+                        jwt_secret="$(grep -E '^JWT_SECRET=' .env.production | tail -n 1 | cut -d= -f2- || true)"
+                        if [ "${#jwt_secret}" -lt 32 ] || [ "${jwt_secret#<}" != "${jwt_secret}" ]; then
+                            if command -v openssl >/dev/null 2>&1; then
+                                new_secret="$(openssl rand -hex 32)"
+                            else
+                                new_secret="$(dd if=/dev/urandom bs=48 count=1 2>/dev/null | base64 | tr -dc 'A-Za-z0-9' | cut -c1-64)"
+                            fi
+
+                            if grep -qE '^JWT_SECRET=' .env.production; then
+                                sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${new_secret}|" .env.production
+                            else
+                                printf '\nJWT_SECRET=%s\n' "${new_secret}" >> .env.production
+                            fi
+                            chmod 600 .env.production || true
+                            echo "Generated a secure JWT_SECRET in deploy/.env.production"
+                        fi
+ENSURE_ENV
+
                         ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "cd ${TARGET_PATH}/deploy && docker compose build --pull --no-cache backend frontend && docker compose up -d --force-recreate --remove-orphans"
                         ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "sudo ln -sf ${TARGET_PATH}/deploy/nginx/cloud-storage.conf /etc/nginx/sites-enabled/cloud-storage && sudo nginx -t && sudo systemctl reload nginx"
                     '''

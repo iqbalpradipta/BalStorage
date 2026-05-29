@@ -19,6 +19,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BalStorage",
   description: "Discord storage management",
+  icons: {
+    icon: "/Logo-bg.png",
+  },
 };
 
 export default function RootLayout({
