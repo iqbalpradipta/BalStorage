@@ -57,8 +57,13 @@ export function FilePreviewModal({
     let objectUrl = "";
     let cancelled = false;
 
-    fileService
-      .fetchPreviewBlob(id)
+    setPreviewUrl("");
+
+    const previewRequest = isImage
+      ? fileService.fetchThumbnailBlob(id, 480)
+      : fileService.fetchPreviewBlob(id);
+
+    previewRequest
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
@@ -91,7 +96,7 @@ export function FilePreviewModal({
               <span className="truncate">{name}</span>
             </h3>
             <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold">
-              {formatSize(size)} • {mimeType}
+              {formatSize(size)} - {mimeType}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

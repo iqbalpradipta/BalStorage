@@ -66,7 +66,7 @@ export function FileCard({
     setThumbnailFailed(false);
 
     fileService
-      .fetchThumbnailBlob(id, 360)
+      .fetchThumbnailBlob(id, 480)
       .then((blob) => {
         if (cancelled) {
           return;
