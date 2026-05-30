@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { FileText, Image as ImageIcon, Video, Music, Code, FileSpreadsheet, Download, Trash2, Eye, MoreVertical, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fileService } from "@/services/file";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +38,6 @@ function getFileIcon(mimeType: string) {
 }
 
 export function FileCard({
-  id,
   name,
   mimeType,
   size,
@@ -51,28 +48,6 @@ export function FileCard({
 }: FileCardProps) {
   const isImage = mimeType.toLowerCase().startsWith("image/");
   const FileIconComponent = getFileIcon(mimeType);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
-
-  useEffect(() => {
-    if (!isImage) return;
-
-    let objectUrl = "";
-    let cancelled = false;
-
-    fileService
-      .fetchPreviewBlob(id)
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-      })
-      .catch(() => setPreviewUrl(""));
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [id, isImage]);
 
   return (
     <div
@@ -124,22 +99,11 @@ export function FileCard({
       {/* Visual Thumbnail Area */}
       <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted/30 border-b border-border/30 relative">
         {isImage ? (
-          previewUrl ? (
-            <img
-              src={previewUrl}
-              alt={name}
-              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 select-none"
-              loading="lazy"
-              draggable={false}
-              onContextMenu={(e) => e.preventDefault()}
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:scale-105 transition-transform duration-300">
-              <div className="p-4 rounded-2xl bg-muted/60 text-muted-foreground">
-                <ImageIcon className="h-10 w-10 text-muted-foreground/80" />
-              </div>
+          <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:scale-105 transition-transform duration-300">
+            <div className="p-4 rounded-2xl bg-muted/60 text-muted-foreground">
+              <ImageIcon className="h-10 w-10 text-muted-foreground/80" />
             </div>
-          )
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:scale-105 transition-transform duration-300">
             <div className="p-4 rounded-2xl bg-muted/60 text-muted-foreground">

@@ -31,9 +31,17 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/((?!api|_next/static|_next/image|.*\\..*).*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, max-age=0, must-revalidate",
+          },
+        ],
+      },
     ];
   },
 };
 
 export default nextConfig;
-
