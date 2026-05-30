@@ -8,17 +8,18 @@ import (
 )
 
 type User struct {
-	ID        string         `json:"id" gorm:"type:uuid;primaryKey"`
-	Name      string         `json:"name" gorm:"not null"`
-	Email     string         `json:"email" gorm:"uniqueIndex;not null"`
-	Password  string         `json:"-" gorm:"not null"`
-	Phone     string         `json:"phone"`
-	Role        string         `json:"role" gorm:"default:'user'"`
-	Tier        string         `json:"tier" gorm:"default:'standard'"`
-	StorageUsed int64          `json:"storage_used" gorm:"default:0"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+	ID               string         `json:"id" gorm:"type:uuid;primaryKey"`
+	Name             string         `json:"name" gorm:"not null"`
+	Email            string         `json:"email" gorm:"uniqueIndex;not null"`
+	Password         string         `json:"-" gorm:"not null"`
+	Phone            string         `json:"phone"`
+	Role             string         `json:"role" gorm:"default:'user'"`
+	Tier             string         `json:"tier" gorm:"default:'standard'"`
+	StorageUsed      int64          `json:"storage_used" gorm:"default:0"`
+	DiscordChannelID string         `json:"discord_channel_id,omitempty" gorm:"type:varchar(64);index"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {

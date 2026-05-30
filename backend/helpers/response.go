@@ -38,7 +38,8 @@ func HandleError(c echo.Context, err error) error {
 	case errors.Is(err, utils.ErrInvalidName),
 		errors.Is(err, utils.ErrInvalidEmail),
 		errors.Is(err, utils.ErrInvalidPassword),
-		errors.Is(err, utils.ErrInvalidPhone):
+		errors.Is(err, utils.ErrInvalidPhone),
+		errors.Is(err, utils.ErrInvalidFileName):
 		return JSON(c, http.StatusBadRequest, false, err.Error(), nil)
 	case errors.Is(err, utils.ErrInvalidCredentials):
 		return JSON(c, http.StatusUnauthorized, false, err.Error(), nil)

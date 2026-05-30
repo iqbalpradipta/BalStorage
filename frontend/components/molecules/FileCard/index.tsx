@@ -1,7 +1,9 @@
 "use client";
 
-import { FileText, Image as ImageIcon, Video, Music, Code, FileSpreadsheet, Download, Trash2, Eye, ExternalLink, MoreVertical } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, Image as ImageIcon, Video, Music, Code, FileSpreadsheet, Download, Trash2, Eye, MoreVertical, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fileService } from "@/services/file";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,8 +16,9 @@ interface FileCardProps {
   name: string;
   mimeType: string;
   size: number;
-  attachmentUrl: string;
   onClick: () => void;
+  onDownload: () => void;
+  onRename: () => void;
   onDelete: () => void;
 }
 
@@ -37,15 +40,39 @@ function getFileIcon(mimeType: string) {
 }
 
 export function FileCard({
+  id,
   name,
   mimeType,
   size,
-  attachmentUrl,
   onClick,
+  onDownload,
+  onRename,
   onDelete,
 }: FileCardProps) {
   const isImage = mimeType.toLowerCase().startsWith("image/");
   const FileIconComponent = getFileIcon(mimeType);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (!isImage) return;
+
+    let objectUrl = "";
+    let cancelled = false;
+
+    fileService
+      .fetchPreviewBlob(id)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+      })
+      .catch(() => setPreviewUrl(""));
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, isImage]);
 
   return (
     <div
@@ -62,6 +89,7 @@ export function FileCard({
             onClick(); // Opens preview modal
           }}
           title="Preview File"
+          aria-label="Preview file"
         >
           <Eye className="h-4.5 w-4.5" />
         </Button>
@@ -71,9 +99,10 @@ export function FileCard({
           className="h-9 w-9 rounded-xl bg-background/95 hover:bg-background text-primary shadow-md hover:scale-105 transition-transform cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
-            window.open(attachmentUrl, "_blank");
+            onDownload();
           }}
           title="Download File"
+          aria-label="Download file"
         >
           <Download className="h-4.5 w-4.5" />
         </Button>
@@ -86,6 +115,7 @@ export function FileCard({
             onDelete();
           }}
           title="Delete File"
+          aria-label="Delete file"
         >
           <Trash2 className="h-4.5 w-4.5" />
         </Button>
@@ -94,12 +124,22 @@ export function FileCard({
       {/* Visual Thumbnail Area */}
       <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted/30 border-b border-border/30 relative">
         {isImage ? (
-          <img
-            src={attachmentUrl}
-            alt={name}
-            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-          />
+          previewUrl ? (
+            <img
+              src={previewUrl}
+              alt={name}
+              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 select-none"
+              loading="lazy"
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:scale-105 transition-transform duration-300">
+              <div className="p-4 rounded-2xl bg-muted/60 text-muted-foreground">
+                <ImageIcon className="h-10 w-10 text-muted-foreground/80" />
+              </div>
+            </div>
+          )
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:scale-105 transition-transform duration-300">
             <div className="p-4 rounded-2xl bg-muted/60 text-muted-foreground">
@@ -120,6 +160,7 @@ export function FileCard({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="File options"
                 className="h-7 w-7 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 bg-background/70 backdrop-blur-xs hover:bg-background border border-border/10 transition-opacity cursor-pointer flex items-center justify-center animate-in fade-in duration-200"
               >
                 <MoreVertical className="h-4 w-4 text-muted-foreground hover:text-foreground" />
@@ -140,11 +181,21 @@ export function FileCard({
                 className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-foreground hover:bg-muted cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  window.open(attachmentUrl, "_blank");
+                  onDownload();
                 }}
               >
                 <Download className="h-3.5 w-3.5 text-muted-foreground" />
                 Download File
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-foreground hover:bg-muted cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRename();
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                Rename File
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer font-medium"

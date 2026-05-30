@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -34,6 +35,7 @@ func main() {
 	if err := services.EnsureUploadDir(uploadDir); err != nil {
 		log.Printf("warning: failed to create upload dir: %v", err)
 	}
+	services.NewDeletedItemCleanupService(db, services.NewDiscordService(discordCfg)).Start(context.Background())
 
 	e := echo.New()
 	e.HideBanner = true

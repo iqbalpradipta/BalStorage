@@ -1,15 +1,18 @@
 "use client";
 
-import { X, Download, FileText, Image as ImageIcon, Video, Music, Code, FileSpreadsheet, Play } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, Download, FileText, Image as ImageIcon, Video, Music, Code, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fileService } from "@/services/file";
 
 interface FilePreviewModalProps {
   open: boolean;
   onClose: () => void;
+  id: string;
   name: string;
   mimeType: string;
-  attachmentUrl: string;
   size: number;
+  onDownload: () => void;
 }
 
 function formatSize(bytes: number): string {
@@ -32,18 +35,44 @@ function getFileIcon(mimeType: string) {
 export function FilePreviewModal({
   open,
   onClose,
+  id,
   name,
   mimeType,
-  attachmentUrl,
   size,
+  onDownload,
 }: FilePreviewModalProps) {
-  if (!open) return null;
-
   const mime = mimeType.toLowerCase();
   const isImage = mime.startsWith("image/");
   const isVideo = mime.startsWith("video/");
   const isAudio = mime.startsWith("audio/");
   const FileIconComponent = getFileIcon(mimeType);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (!open || (!isImage && !isVideo && !isAudio)) {
+      setPreviewUrl("");
+      return;
+    }
+
+    let objectUrl = "";
+    let cancelled = false;
+
+    fileService
+      .fetchPreviewBlob(id)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+      })
+      .catch(() => setPreviewUrl(""));
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, open, isImage, isVideo, isAudio]);
+
+  if (!open) return null;
 
   return (
     <div 
@@ -69,7 +98,7 @@ export function FilePreviewModal({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(attachmentUrl, "_blank")}
+              onClick={onDownload}
               className="h-8 rounded-lg text-xs font-semibold hover:bg-muted cursor-pointer"
             >
               <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -79,6 +108,7 @@ export function FilePreviewModal({
               variant="ghost" 
               size="icon" 
               onClick={onClose}
+              aria-label="Close preview"
               className="h-8 w-8 rounded-lg hover:bg-muted cursor-pointer"
             >
               <X className="h-4 w-4" />
@@ -89,17 +119,26 @@ export function FilePreviewModal({
         {/* Media Content Preview Dashboard */}
         <div className="flex-1 flex max-h-[70vh] items-center justify-center overflow-hidden rounded-xl bg-muted/20 border border-border/30 p-2">
           {isImage ? (
-            <img
-              src={attachmentUrl}
-              alt={name}
-              className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md"
-            />
+            previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={name}
+                className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md select-none"
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+            ) : (
+              <div className="text-xs font-semibold text-muted-foreground">Loading preview...</div>
+            )
           ) : isVideo ? (
-            <video 
-              src={attachmentUrl} 
+            <video
+              src={previewUrl}
               controls 
               className="max-h-[65vh] max-w-full rounded-lg shadow-md"
               autoPlay
+              controlsList="nodownload noremoteplayback"
+              disablePictureInPicture
+              onContextMenu={(e) => e.preventDefault()}
             />
           ) : isAudio ? (
             <div className="flex flex-col items-center gap-4 p-8 w-full max-w-md text-center">
@@ -112,10 +151,12 @@ export function FilePreviewModal({
               </div>
               
               <audio 
-                src={attachmentUrl} 
+                src={previewUrl}
                 controls 
                 className="w-full mt-2" 
                 autoPlay
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
               />
             </div>
           ) : (
@@ -131,7 +172,7 @@ export function FilePreviewModal({
                 </p>
               </div>
               <Button 
-                onClick={() => window.open(attachmentUrl, "_blank")}
+                onClick={onDownload}
                 className="rounded-xl h-10 bg-linear-to-r from-primary to-primary/90 shadow-md shadow-primary/10 hover:shadow-primary/25 cursor-pointer font-semibold text-xs px-6"
               >
                 <Download className="mr-2 h-4 w-4" /> Download File

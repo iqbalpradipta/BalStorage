@@ -57,6 +57,8 @@ apiClient.interceptors.response.use(
 const extendedClient = {
   get: <T>(url: string, config?: Record<string, unknown>) =>
     apiClient.get(url, config) as Promise<T>,
+  getBlob: (url: string, config?: Record<string, unknown>) =>
+    apiClient.get(url, { ...config, responseType: "blob" }) as Promise<Blob>,
   post: <T>(url: string, data?: unknown, config?: Record<string, unknown>) =>
     apiClient.post(url, data, config) as Promise<T>,
   put: <T>(url: string, data?: unknown, config?: Record<string, unknown>) =>

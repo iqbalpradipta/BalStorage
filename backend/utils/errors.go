@@ -12,6 +12,7 @@ var (
 	ErrInvalidEmail       = errors.New("invalid email address")
 	ErrInvalidPassword    = errors.New("password must be between 8 and 72 characters")
 	ErrInvalidPhone       = errors.New("phone number is too long")
+	ErrInvalidFileName    = errors.New("invalid file name")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrWeakJWTSecret      = errors.New("jwt secret is not configured securely")
 )

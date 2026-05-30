@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -53,9 +54,11 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border/30 h-14 shrink-0">
         {!collapsed ? (
           <Link href="/dashboard" onClick={() => setMobileOpen?.(false)} className="flex items-center gap-2 group">
-            <img 
+            <Image 
               src="/Logo-bg-removebg-preview.png" 
               alt="BalStorage Logo" 
+              width={32}
+              height={32}
               className="h-8 w-8 object-contain group-hover:scale-105 transition-transform duration-200"
             />
             <span className="font-bold text-base tracking-wide bg-linear-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
@@ -64,9 +67,11 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
           </Link>
         ) : (
           <div className="flex h-8 w-8 items-center justify-center mx-auto">
-            <img 
+            <Image 
               src="/Logo-bg-removebg-preview.png" 
               alt="BalStorage Logo" 
+              width={32}
+              height={32}
               className="h-8 w-8 object-contain"
             />
           </div>
@@ -75,6 +80,7 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
+          aria-label="Toggle sidebar collapse"
           className={cn(
             "h-7 w-7 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground border border-sidebar-border/20 absolute -right-3 top-3.5 bg-background shadow-md hidden md:flex cursor-pointer",
             collapsed && "rotate-180"

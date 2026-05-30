@@ -28,11 +28,12 @@ func Register(e *echo.Echo, db *gorm.DB) {
 
 	// Shared dependencies
 	discordSvc := services.NewDiscordService(config.Discord)
+	settingRepo := repository.NewSettingRepository(db)
 
 	// Folder
 	folderRepo := repository.NewFolderRepository(db)
 	fileRepo := repository.NewFileRepository(db)
-	folderService := services.NewFolderService(folderRepo, fileRepo, discordSvc)
+	folderService := services.NewFolderService(folderRepo, fileRepo, userRepo, settingRepo, discordSvc)
 	folderController := controllers.NewFolderController(folderService)
 
 	// Protected routes
@@ -55,6 +56,9 @@ func Register(e *echo.Echo, db *gorm.DB) {
 	protected.GET("/folders/:id/files", fileController.ListByFolder)
 	protected.POST("/folders/:id/files", fileController.Upload)
 	protected.GET("/files/:id", fileController.GetByID)
+	protected.GET("/files/:id/preview", fileController.Preview)
+	protected.GET("/files/:id/download", fileController.Download)
+	protected.PUT("/files/:id", fileController.Update)
 	protected.DELETE("/files/:id", fileController.Delete)
 
 	// Storage
@@ -62,11 +66,13 @@ func Register(e *echo.Echo, db *gorm.DB) {
 	protected.GET("/stats", storageController.GetStats)
 
 	// Admin
-	adminService := services.NewAdminService(userRepo)
+	adminService := services.NewAdminService(userRepo, settingRepo)
 	adminController := controllers.NewAdminController(adminService)
 
 	admin := protected.Group("/admin")
 	admin.Use(middlewares.AdminOnly)
 	admin.GET("/users", adminController.ListUsers)
 	admin.PUT("/users/:id/tier", adminController.UpdateTier)
+	admin.GET("/settings/discord-channel-mode", adminController.GetDiscordChannelMode)
+	admin.PUT("/settings/discord-channel-mode", adminController.UpdateDiscordChannelMode)
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +17,7 @@ type DiscordService interface {
 	DeleteChannel(channelID string) error
 	RenameChannel(channelID, newName string) error
 	SendFile(channelID, folderLabel, filename, filepath string) (messageID string, attachmentURL string, err error)
+	RenameFileMessage(channelID, messageID, folderLabel, filename string) error
 	DeleteMessage(channelID, messageID string) error
 	GetMessageAttachment(channelID, messageID string) (string, error)
 }
@@ -26,6 +28,18 @@ type discordService struct {
 
 func NewDiscordService(cfg *config.DiscordConfig) DiscordService {
 	return &discordService{cfg: cfg}
+}
+
+func IsDiscordUnknownChannelError(err error) bool {
+	var restErr *discordgo.RESTError
+	return errors.As(err, &restErr) && restErr.Message != nil && restErr.Message.Code == 10003
+}
+
+func IsDiscordNotFoundError(err error) bool {
+	var restErr *discordgo.RESTError
+	return errors.As(err, &restErr) &&
+		restErr.Message != nil &&
+		(restErr.Message.Code == 10003 || restErr.Message.Code == 10008)
 }
 
 func (s *discordService) CreateChannel(name string) (string, error) {
@@ -112,6 +126,20 @@ func (s *discordService) SendFile(channelID, folderLabel, filename, filepath str
 	attachmentURL := msg.Attachments[0].URL
 	log.Printf("file uploaded to discord: %s (message: %s, channel: %s)", filename, msg.ID, channelID)
 	return msg.ID, attachmentURL, nil
+}
+
+func (s *discordService) RenameFileMessage(channelID, messageID, folderLabel, filename string) error {
+	if err := s.cfg.Validate(); err != nil {
+		return err
+	}
+
+	content := fmt.Sprintf("[%s] %s", folderLabel, filename)
+	if _, err := s.cfg.Session.ChannelMessageEdit(channelID, messageID, content); err != nil {
+		return fmt.Errorf("failed to rename discord file message: %w", err)
+	}
+
+	log.Printf("discord file message renamed: %s in channel %s", messageID, channelID)
+	return nil
 }
 
 func (s *discordService) DeleteMessage(channelID, messageID string) error {

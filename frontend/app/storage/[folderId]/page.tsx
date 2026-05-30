@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Search, Grid, List, FolderOpen, FileText, HardDrive, RefreshCw, Trash2, Download, Eye, ShieldAlert, Folder, Plus } from "lucide-react";
+import { ArrowLeft, Search, Grid, List, FolderOpen, FileText, RefreshCw, Trash2, Download, Eye, Folder, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileCard } from "@/components/molecules/FileCard";
@@ -88,6 +88,8 @@ export default function FolderDetailPage() {
   // Custom modal states
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
+  const [fileToRename, setFileToRename] = useState<FileItem | null>(null);
+  const [fileRenameOpen, setFileRenameOpen] = useState(false);
 
   // Sub-folder states
   const [subFolders, setSubFolders] = useState<SubFolder[]>([]);
@@ -179,6 +181,30 @@ export default function FolderDetailPage() {
     }
   };
 
+  const triggerRename = (file: FileItem) => {
+    setFileToRename(file);
+    setFileRenameOpen(true);
+  };
+
+  const handleFileRename = async (newName: string) => {
+    if (!fileToRename || !newName.trim() || newName.trim() === fileToRename.original_name) return;
+
+    const result = await fileService.rename(fileToRename.id, newName.trim());
+    if (result.success) {
+      customToast.success("File Renamed", `Renamed to "${newName.trim()}".`);
+      fetchFiles();
+    } else {
+      customToast.error("Failed to Rename", result.error || "Could not rename file.");
+    }
+  };
+
+  const handleDownload = async (file: Pick<FileItem, "id" | "original_name">) => {
+    const result = await fileService.download(file.id, file.original_name);
+    if (!result.success) {
+      customToast.error("Download Failed", result.error || "Could not download file.");
+    }
+  };
+
   // Memoized client-side filtered files list based on search query and category tabs
   const filteredFiles = useMemo(() => {
     return files.filter((file) => {
@@ -231,6 +257,7 @@ export default function FolderDetailPage() {
             variant="outline"
             size="icon"
             onClick={() => router.push("/storage")}
+            aria-label="Back to Storage"
             className="h-10 w-10 rounded-xl hover:bg-muted/50 border-border/60 shrink-0 cursor-pointer"
           >
             <ArrowLeft className="h-4.5 w-4.5" />
@@ -265,6 +292,7 @@ export default function FolderDetailPage() {
               variant="ghost"
               size="icon"
               onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
               className={`h-8 w-8 rounded-lg cursor-pointer ${viewMode === "grid" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:bg-muted"}`}
             >
               <Grid className="h-4 w-4" />
@@ -273,6 +301,7 @@ export default function FolderDetailPage() {
               variant="ghost"
               size="icon"
               onClick={() => setViewMode("list")}
+              aria-label="List view"
               className={`h-8 w-8 rounded-lg cursor-pointer ${viewMode === "list" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:bg-muted"}`}
             >
               <List className="h-4 w-4" />
@@ -404,8 +433,9 @@ export default function FolderDetailPage() {
                 name={file.original_name}
                 mimeType={file.mime_type}
                 size={file.size}
-                attachmentUrl={file.discord_attachment_url}
                 onClick={() => setPreviewFile(file)}
+                onDownload={() => handleDownload(file)}
+                onRename={() => triggerRename(file)}
                 onDelete={() => triggerDelete(file)}
               />
             ))}
@@ -446,6 +476,7 @@ export default function FolderDetailPage() {
                             className="h-7 w-7 rounded-lg hover:bg-background cursor-pointer"
                             onClick={() => setPreviewFile(file)}
                             title="Preview"
+                            aria-label="Preview file"
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
@@ -453,10 +484,21 @@ export default function FolderDetailPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 rounded-lg hover:bg-background text-primary cursor-pointer"
-                            onClick={() => window.open(file.discord_attachment_url, "_blank")}
+                            onClick={() => handleDownload(file)}
                             title="Download"
+                            aria-label="Download file"
                           >
                             <Download className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-lg hover:bg-background cursor-pointer"
+                            onClick={() => triggerRename(file)}
+                            title="Rename"
+                            aria-label="Rename file"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -464,6 +506,7 @@ export default function FolderDetailPage() {
                             className="h-7 w-7 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-500 cursor-pointer"
                             onClick={() => triggerDelete(file)}
                             title="Delete"
+                            aria-label="Delete file"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -512,10 +555,11 @@ export default function FolderDetailPage() {
         <FilePreviewModal
           open={!!previewFile}
           onClose={() => setPreviewFile(null)}
+          id={previewFile.id}
           name={previewFile.original_name}
           mimeType={previewFile.mime_type}
-          attachmentUrl={previewFile.discord_attachment_url}
           size={previewFile.size}
+          onDownload={() => handleDownload(previewFile)}
         />
       )}
 
@@ -548,6 +592,20 @@ export default function FolderDetailPage() {
           defaultValue={subToRename.name}
           placeholder="New folder name"
           onSubmit={handleSubRename}
+        />
+      )}
+
+      {fileToRename && (
+        <PromptModal
+          open={fileRenameOpen}
+          onOpenChange={setFileRenameOpen}
+          title="Rename File"
+          description={`Enter a new name for "${fileToRename.original_name}".`}
+          labelText="File Name"
+          defaultValue={fileToRename.original_name}
+          placeholder="New file name"
+          confirmText="Rename File"
+          onSubmit={handleFileRename}
         />
       )}
 

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"balStorage/backend/model"
 
 	"gorm.io/gorm"
@@ -15,6 +17,12 @@ type FolderRepository interface {
 	Update(folder *model.Folder) error
 	Delete(id string) error
 	DeleteByParentID(parentID string) error
+	DeleteByIDs(ids []string) error
+	FindByIDUnscoped(id string) (*model.Folder, error)
+	FindDescendantIDs(parentID string) ([]string, error)
+	FindDescendantIDsUnscoped(parentID string) ([]string, error)
+	FindDeletedBefore(cutoff time.Time, limit int) ([]model.Folder, error)
+	ForceDeleteByIDs(ids []string) error
 }
 
 type folderRepository struct {
@@ -80,4 +88,71 @@ func (r *folderRepository) Delete(id string) error {
 
 func (r *folderRepository) DeleteByParentID(parentID string) error {
 	return r.db.Delete(&model.Folder{}, "parent_id = ?", parentID).Error
+}
+
+func (r *folderRepository) DeleteByIDs(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.db.Delete(&model.Folder{}, "id IN ?", ids).Error
+}
+
+func (r *folderRepository) FindByIDUnscoped(id string) (*model.Folder, error) {
+	var folder model.Folder
+	err := r.db.Unscoped().First(&folder, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &folder, nil
+}
+
+func (r *folderRepository) FindDescendantIDs(parentID string) ([]string, error) {
+	return r.findDescendantIDs(parentID, false)
+}
+
+func (r *folderRepository) FindDescendantIDsUnscoped(parentID string) ([]string, error) {
+	return r.findDescendantIDs(parentID, true)
+}
+
+func (r *folderRepository) FindDeletedBefore(cutoff time.Time, limit int) ([]model.Folder, error) {
+	var folders []model.Folder
+	err := r.db.Unscoped().
+		Where("deleted_at IS NOT NULL AND deleted_at <= ?", cutoff).
+		Order("deleted_at ASC").
+		Limit(limit).
+		Find(&folders).Error
+	return folders, err
+}
+
+func (r *folderRepository) ForceDeleteByIDs(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.db.Unscoped().Delete(&model.Folder{}, "id IN ?", ids).Error
+}
+
+func (r *folderRepository) findDescendantIDs(parentID string, unscoped bool) ([]string, error) {
+	ids := []string{}
+	queue := []string{parentID}
+
+	for len(queue) > 0 {
+		currentID := queue[0]
+		queue = queue[1:]
+
+		var children []model.Folder
+		q := r.db
+		if unscoped {
+			q = q.Unscoped()
+		}
+		if err := q.Where("parent_id = ?", currentID).Find(&children).Error; err != nil {
+			return nil, err
+		}
+
+		for _, child := range children {
+			ids = append(ids, child.ID)
+			queue = append(queue, child.ID)
+		}
+	}
+
+	return ids, nil
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Eye, EyeOff, Lock, Mail, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,9 +55,11 @@ export function LoginForm() {
       <div className="mb-8 text-center">
         {/* Unified primary-tinted icon */}
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
-          <img
+          <Image
             src="/Logo-bg-removebg-preview.png"
             alt="BalStorage Logo"
+            width={64}
+            height={64}
             className="h-16 w-16 object-contain"
           />
         </div>
@@ -113,6 +116,7 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
             >
               {showPassword ? (

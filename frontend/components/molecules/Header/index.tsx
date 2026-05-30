@@ -91,6 +91,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             variant="ghost"
             size="icon"
             onClick={onToggleSidebar}
+            aria-label="Toggle sidebar"
             className="h-9 w-9 rounded-xl hover:bg-muted/50 md:hidden cursor-pointer shrink-0"
           >
             <Menu className="h-5 w-5" />

@@ -54,6 +54,29 @@ interface ApiError {
 }
 
 export const fileService = {
+  previewUrl(id: string): string {
+    return `v1/files/${id}/preview`;
+  },
+
+  downloadUrl(id: string): string {
+    return `v1/files/${id}/download`;
+  },
+
+  async fetchPreviewBlob(id: string): Promise<Blob> {
+    return apiClient.getBlob(`v1/files/${id}/preview`);
+  },
+
+  async download(id: string, filename: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const blob = await apiClient.getBlob(`v1/files/${id}/download`);
+      triggerBrowserDownload(blob, filename || "download");
+      return { success: true };
+    } catch (error) {
+      const apiError = error as ApiError;
+      return { success: false, error: apiError.message || "Failed to download file" };
+    }
+  },
+
   async listByFolder(
     folderId: string,
     page = 1,
@@ -102,6 +125,16 @@ export const fileService = {
     }
   },
 
+  async rename(id: string, name: string): Promise<{ success: boolean; data?: FileItem; error?: string }> {
+    try {
+      const response = (await apiClient.put(`v1/files/${id}`, { name })) as unknown as ApiResponse<FileItem>;
+      return { success: true, data: response.data };
+    } catch (error) {
+      const apiError = error as ApiError;
+      return { success: false, error: apiError.message || "Failed to rename file" };
+    }
+  },
+
   async remove(id: string): Promise<{ success: boolean; error?: string }> {
     try {
       const response = (await apiClient.delete(`v1/files/${id}`)) as unknown as ApiResponse<null>;
@@ -112,3 +145,20 @@ export const fileService = {
     }
   },
 };
+
+function triggerBrowserDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = sanitizeDownloadName(filename);
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function sanitizeDownloadName(filename: string): string {
+  const cleaned = filename.trim().replace(/[\\/\r\n\0]/g, "");
+  return cleaned || "download";
+}

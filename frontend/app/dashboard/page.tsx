@@ -162,6 +162,13 @@ export default function DashboardPage() {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  const handleDownload = async (file: Pick<FileItem, "id" | "original_name">) => {
+    const result = await fileService.download(file.id, file.original_name);
+    if (!result.success) {
+      customToast.error("Download Failed", result.error || "Could not download file.");
+    }
+  };
+
   // Use tier limit for storage bar (0 = unlimited)
   const capacityCap = tier.limit;
   const storagePercentage = capacityCap === 0 ? 0 : Math.min((totalSize / capacityCap) * 100, 100);
@@ -222,7 +229,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground">{formatSize(totalSize)}</h3>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{formatSize(totalSize)}</div>
                 <p className="text-xs text-muted-foreground mt-1">
                   used of {tier.limit === 0 ? "Unlimited" : formatSize(tier.limit)} ({tier.label})
                 </p>
@@ -249,7 +256,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground">{folders.length}</h3>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{folders.length}</div>
                 <p className="text-xs text-muted-foreground mt-1">active Discord channels</p>
               </div>
               <div className="mt-4 flex items-center gap-1.5 text-xs text-secondary font-medium">
@@ -267,7 +274,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground">{files.length}</h3>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{files.length}</div>
                 <p className="text-xs text-muted-foreground mt-1">discord attachment objects</p>
               </div>
               <div className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
@@ -285,7 +292,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground">{latency} ms</h3>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{latency} ms</div>
                 <p className="text-xs text-muted-foreground mt-1">active backend ping response</p>
               </div>
               <div className="mt-4 flex items-center gap-1.5 text-xs text-emerald-500 font-medium">
@@ -459,7 +466,7 @@ export default function DashboardPage() {
                           variant="ghost"
                           size="sm"
                           className="text-xs h-7 px-2 rounded-lg cursor-pointer"
-                          onClick={() => window.open(file.discord_attachment_url, "_blank")}
+                          onClick={() => handleDownload(file)}
                         >
                           Download
                         </Button>

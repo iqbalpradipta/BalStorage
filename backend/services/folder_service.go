@@ -1,11 +1,19 @@
 package services
 
 import (
+	"fmt"
+	"strings"
+
 	"balStorage/backend/model"
 	"balStorage/backend/repository"
 	"balStorage/backend/utils"
 
 	"gorm.io/gorm"
+)
+
+const (
+	DiscordChannelModeSettingKey = "discord_channel_mode"
+	defaultDiscordChannelMode    = "folder"
 )
 
 type FolderService interface {
@@ -15,19 +23,24 @@ type FolderService interface {
 	Update(id, userID string, input model.UpdateFolderInput) (*model.Folder, error)
 	Delete(id, userID string) error
 	GetRootChannelID(folderID string) (string, error)
+	RecreateRootChannel(folderID string) (string, error)
 }
 
 type folderService struct {
-	folderRepo repository.FolderRepository
-	fileRepo   repository.FileRepository
-	discordSvc DiscordService
+	folderRepo  repository.FolderRepository
+	fileRepo    repository.FileRepository
+	userRepo    repository.UserRepository
+	settingRepo repository.SettingRepository
+	discordSvc  DiscordService
 }
 
-func NewFolderService(folderRepo repository.FolderRepository, fileRepo repository.FileRepository, discordSvc DiscordService) FolderService {
+func NewFolderService(folderRepo repository.FolderRepository, fileRepo repository.FileRepository, userRepo repository.UserRepository, settingRepo repository.SettingRepository, discordSvc DiscordService) FolderService {
 	return &folderService{
-		folderRepo: folderRepo,
-		fileRepo:   fileRepo,
-		discordSvc: discordSvc,
+		folderRepo:  folderRepo,
+		fileRepo:    fileRepo,
+		userRepo:    userRepo,
+		settingRepo: settingRepo,
+		discordSvc:  discordSvc,
 	}
 }
 
@@ -56,11 +69,17 @@ func (s *folderService) Create(userID string, input model.CreateFolderInput) (*m
 	}
 
 	var channelID string
-	// Only create Discord channel for root folders (not sub-folders)
-	if input.ParentID == nil || *input.ParentID == "" {
-		channelID, err = s.discordSvc.CreateChannel(input.Name)
-		if err != nil {
+	if s.useUserChannelMode() {
+		if _, err := s.ensureUserChannel(userID); err != nil {
 			return nil, err
+		}
+	} else {
+		// Only create Discord channel for root folders (not sub-folders).
+		if input.ParentID == nil || *input.ParentID == "" {
+			channelID, err = s.discordSvc.CreateChannel(input.Name)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -68,7 +87,7 @@ func (s *folderService) Create(userID string, input model.CreateFolderInput) (*m
 		UserID:           userID,
 		ParentID:         input.ParentID,
 		Name:             input.Name,
-		DiscordChannelID: channelID,
+		DiscordChannelID: optionalString(channelID),
 	}
 
 	if err := s.folderRepo.Create(folder); err != nil {
@@ -122,9 +141,10 @@ func (s *folderService) Update(id, userID string, input model.UpdateFolderInput)
 		return nil, utils.ErrBadRequest
 	}
 
-	// Only rename Discord channel for root folders
-	if folder.DiscordChannelID != "" {
-		if err := s.discordSvc.RenameChannel(folder.DiscordChannelID, input.Name); err != nil {
+	// In folder mode, root folders own Discord channels. In user mode, folder
+	// rename only changes the DB folder name; the user channel stays stable.
+	if !s.useUserChannelMode() && hasStringValue(folder.DiscordChannelID) {
+		if err := s.discordSvc.RenameChannel(*folder.DiscordChannelID, input.Name); err != nil {
 			return nil, err
 		}
 	}
@@ -138,22 +158,48 @@ func (s *folderService) Update(id, userID string, input model.UpdateFolderInput)
 }
 
 func (s *folderService) Delete(id, userID string) error {
-	folder, err := s.GetByID(id, userID)
-	if err != nil {
+	if _, err := s.GetByID(id, userID); err != nil {
 		return err
 	}
 
-	// Delete sub-folders from DB (they have no Discord channels)
-	s.folderRepo.DeleteByParentID(id)
+	descendantIDs, err := s.folderRepo.FindDescendantIDs(id)
+	if err != nil {
+		return err
+	}
+	folderIDs := append([]string{id}, descendantIDs...)
 
-	// Only delete Discord channel for root folders
-	if folder.DiscordChannelID != "" {
-		if err := s.discordSvc.DeleteChannel(folder.DiscordChannelID); err != nil {
-			return err
+	files, err := s.fileRepo.FindByFolderIDsUnscoped(folderIDs)
+	if err != nil {
+		return err
+	}
+	var releasedBytes int64
+	for _, file := range files {
+		if !file.DeletedAt.Valid {
+			releasedBytes += file.Size
 		}
 	}
 
-	return s.folderRepo.Delete(id)
+	if err := s.fileRepo.DeleteByFolderIDs(folderIDs); err != nil {
+		return err
+	}
+
+	if err := s.folderRepo.DeleteByIDs(folderIDs); err != nil {
+		return err
+	}
+
+	if releasedBytes > 0 {
+		user, err := s.userRepo.FindByID(userID)
+		if err != nil {
+			return err
+		}
+		user.StorageUsed -= releasedBytes
+		if user.StorageUsed < 0 {
+			user.StorageUsed = 0
+		}
+		return s.userRepo.Update(user)
+	}
+
+	return nil
 }
 
 // GetRootChannelID walks up the folder tree to find the root folder's DiscordChannelID.
@@ -164,8 +210,12 @@ func (s *folderService) GetRootChannelID(folderID string) (string, error) {
 		return "", err
 	}
 
-	if folder.DiscordChannelID != "" {
-		return folder.DiscordChannelID, nil
+	if s.useUserChannelMode() {
+		return s.ensureUserChannel(folder.UserID)
+	}
+
+	if hasStringValue(folder.DiscordChannelID) {
+		return *folder.DiscordChannelID, nil
 	}
 
 	// Walk up to find root
@@ -175,11 +225,158 @@ func (s *folderService) GetRootChannelID(folderID string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if parent.DiscordChannelID != "" {
-			return parent.DiscordChannelID, nil
+		if hasStringValue(parent.DiscordChannelID) {
+			return *parent.DiscordChannelID, nil
 		}
 		current = parent
 	}
 
 	return "", gorm.ErrRecordNotFound
+}
+
+func (s *folderService) RecreateRootChannel(folderID string) (string, error) {
+	folder, err := s.folderRepo.FindByID(folderID)
+	if err != nil {
+		return "", err
+	}
+
+	if s.useUserChannelMode() {
+		return s.recreateUserChannel(folder.UserID)
+	}
+
+	root, err := s.rootFolder(folder)
+	if err != nil {
+		return "", err
+	}
+
+	channelID, err := s.discordSvc.CreateChannel(root.Name)
+	if err != nil {
+		return "", err
+	}
+
+	root.DiscordChannelID = optionalString(channelID)
+	if err := s.folderRepo.Update(root); err != nil {
+		s.discordSvc.DeleteChannel(channelID)
+		return "", err
+	}
+
+	return channelID, nil
+}
+
+func optionalString(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return &value
+}
+
+func hasStringValue(value *string) bool {
+	return value != nil && strings.TrimSpace(*value) != ""
+}
+
+func (s *folderService) useUserChannelMode() bool {
+	mode := defaultDiscordChannelMode
+	if s.settingRepo != nil {
+		if value, err := s.settingRepo.Get(DiscordChannelModeSettingKey); err == nil && value != "" {
+			mode = value
+		}
+	}
+	return strings.EqualFold(mode, "user")
+}
+
+func (s *folderService) ensureUserChannel(userID string) (string, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return "", err
+	}
+	if user.DiscordChannelID != "" {
+		return user.DiscordChannelID, nil
+	}
+
+	userSuffix := user.ID
+	if len(userSuffix) > 8 {
+		userSuffix = userSuffix[:8]
+	}
+	channelName := normalizeDiscordChannelName(fmt.Sprintf("%s-%s", user.Name, userSuffix))
+	channelID, err := s.discordSvc.CreateChannel(channelName)
+	if err != nil {
+		return "", err
+	}
+
+	user.DiscordChannelID = channelID
+	if err := s.userRepo.Update(user); err != nil {
+		s.discordSvc.DeleteChannel(channelID)
+		return "", err
+	}
+
+	return channelID, nil
+}
+
+func (s *folderService) recreateUserChannel(userID string) (string, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return "", err
+	}
+
+	channelID, err := s.createUserChannel(user)
+	if err != nil {
+		return "", err
+	}
+
+	user.DiscordChannelID = channelID
+	if err := s.userRepo.Update(user); err != nil {
+		s.discordSvc.DeleteChannel(channelID)
+		return "", err
+	}
+
+	return channelID, nil
+}
+
+func (s *folderService) createUserChannel(user *model.User) (string, error) {
+	userSuffix := user.ID
+	if len(userSuffix) > 8 {
+		userSuffix = userSuffix[:8]
+	}
+	channelName := normalizeDiscordChannelName(fmt.Sprintf("%s-%s", user.Name, userSuffix))
+	return s.discordSvc.CreateChannel(channelName)
+}
+
+func (s *folderService) rootFolder(folder *model.Folder) (*model.Folder, error) {
+	current := folder
+	for current.ParentID != nil && *current.ParentID != "" {
+		parent, err := s.folderRepo.FindByID(*current.ParentID)
+		if err != nil {
+			return nil, err
+		}
+		current = parent
+	}
+	return current, nil
+}
+
+func normalizeDiscordChannelName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	var b strings.Builder
+	lastDash := false
+
+	for _, r := range name {
+		valid := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if valid {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	result := strings.Trim(b.String(), "-")
+	if result == "" {
+		result = "user-storage"
+	}
+	if len(result) > 90 {
+		result = strings.Trim(result[:90], "-")
+	}
+	return result
 }

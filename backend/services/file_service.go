@@ -1,8 +1,9 @@
 package services
 
 import (
-	"fmt"
 	"mime/multipart"
+	"path/filepath"
+	"strings"
 
 	"balStorage/backend/helpers"
 	"balStorage/backend/model"
@@ -24,6 +25,7 @@ type FileService interface {
 	UploadMultiple(userID, folderID, uploadDir string, fileHeaders []*multipart.FileHeader) ([]UploadResult, error)
 	ListByFolder(folderID, userID string, page, limit int) ([]model.File, int64, error)
 	GetByID(id, userID string) (*model.File, error)
+	Rename(id, userID, newName string) (*model.File, error)
 	Delete(id, userID string) error
 }
 
@@ -33,6 +35,12 @@ type fileService struct {
 	folderSvc  FolderService
 	discordSvc DiscordService
 	storageSvc StorageService
+}
+
+type discordUploadResult struct {
+	ChannelID     string
+	MessageID     string
+	AttachmentURL string
 }
 
 func NewFileService(
@@ -69,14 +77,7 @@ func (s *fileService) Upload(userID, folderID, uploadDir string, fileHeader *mul
 		return nil, err
 	}
 
-	channelID, folderLabel := s.resolveChannelAndLabel(folder)
-
-	messageID, attachmentURL, err := s.discordSvc.SendFile(
-		channelID,
-		folderLabel,
-		uploaded.OriginalName,
-		uploaded.FilePath,
-	)
+	discordFile, err := s.sendFileToDiscord(folder, uploaded.OriginalName, uploaded.FilePath)
 	if err != nil {
 		CleanupTempFile(uploaded.FilePath)
 		return nil, err
@@ -89,12 +90,12 @@ func (s *fileService) Upload(userID, folderID, uploadDir string, fileHeader *mul
 		StoredName:           uploaded.StoredName,
 		MimeType:             uploaded.MimeType,
 		Size:                 uploaded.Size,
-		DiscordMessageID:     messageID,
-		DiscordAttachmentURL: attachmentURL,
+		DiscordMessageID:     discordFile.MessageID,
+		DiscordAttachmentURL: discordFile.AttachmentURL,
 	}
 
 	if err := s.fileRepo.Create(file); err != nil {
-		s.discordSvc.DeleteMessage(channelID, messageID)
+		s.discordSvc.DeleteMessage(discordFile.ChannelID, discordFile.MessageID)
 		CleanupTempFile(uploaded.FilePath)
 		return nil, err
 	}
@@ -144,14 +145,7 @@ func (s *fileService) uploadSingle(folder *model.Folder, userID, uploadDir strin
 		return nil, err
 	}
 
-	channelID, folderLabel := s.resolveChannelAndLabel(folder)
-
-	messageID, attachmentURL, err := s.discordSvc.SendFile(
-		channelID,
-		folderLabel,
-		uploaded.OriginalName,
-		uploaded.FilePath,
-	)
+	discordFile, err := s.sendFileToDiscord(folder, uploaded.OriginalName, uploaded.FilePath)
 	if err != nil {
 		CleanupTempFile(uploaded.FilePath)
 		return nil, err
@@ -164,18 +158,18 @@ func (s *fileService) uploadSingle(folder *model.Folder, userID, uploadDir strin
 		StoredName:           uploaded.StoredName,
 		MimeType:             uploaded.MimeType,
 		Size:                 uploaded.Size,
-		DiscordMessageID:     messageID,
-		DiscordAttachmentURL: attachmentURL,
+		DiscordMessageID:     discordFile.MessageID,
+		DiscordAttachmentURL: discordFile.AttachmentURL,
 	}
 
 	if err := s.fileRepo.Create(file); err != nil {
-		s.discordSvc.DeleteMessage(channelID, messageID)
+		s.discordSvc.DeleteMessage(discordFile.ChannelID, discordFile.MessageID)
 		CleanupTempFile(uploaded.FilePath)
 		return nil, err
 	}
 
 	if err := s.storageSvc.AddStorageUsed(userID, uploaded.Size); err != nil {
-		s.discordSvc.DeleteMessage(channelID, messageID)
+		s.discordSvc.DeleteMessage(discordFile.ChannelID, discordFile.MessageID)
 		s.fileRepo.Delete(file.ID)
 		CleanupTempFile(uploaded.FilePath)
 		return nil, err
@@ -183,6 +177,36 @@ func (s *fileService) uploadSingle(folder *model.Folder, userID, uploadDir strin
 
 	CleanupTempFile(uploaded.FilePath)
 	return file, nil
+}
+
+func (s *fileService) sendFileToDiscord(folder *model.Folder, filename, path string) (*discordUploadResult, error) {
+	channelID, folderLabel := s.resolveChannelAndLabel(folder)
+	if channelID == "" {
+		refreshedChannelID, err := s.folderSvc.RecreateRootChannel(folder.ID)
+		if err != nil {
+			return nil, err
+		}
+		channelID = refreshedChannelID
+	}
+
+	messageID, attachmentURL, err := s.discordSvc.SendFile(channelID, folderLabel, filename, path)
+	if IsDiscordUnknownChannelError(err) {
+		refreshedChannelID, refreshErr := s.folderSvc.RecreateRootChannel(folder.ID)
+		if refreshErr != nil {
+			return nil, refreshErr
+		}
+		channelID = refreshedChannelID
+		messageID, attachmentURL, err = s.discordSvc.SendFile(channelID, folderLabel, filename, path)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &discordUploadResult{
+		ChannelID:     channelID,
+		MessageID:     messageID,
+		AttachmentURL: attachmentURL,
+	}, nil
 }
 
 func (s *fileService) ListByFolder(folderID, userID string, page, limit int) ([]model.File, int64, error) {
@@ -219,18 +243,42 @@ func (s *fileService) GetByID(id, userID string) (*model.File, error) {
 	return file, nil
 }
 
+func (s *fileService) Rename(id, userID, newName string) (*model.File, error) {
+	file, err := s.GetByID(id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	newName = strings.TrimSpace(newName)
+	if !isValidFileDisplayName(newName) {
+		return nil, utils.ErrInvalidFileName
+	}
+
+	folder, err := s.folderRepo.FindByID(file.FolderID)
+	if err != nil {
+		return nil, err
+	}
+
+	channelID, label := s.resolveChannelAndLabel(folder)
+	if channelID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	if err := s.discordSvc.RenameFileMessage(channelID, file.DiscordMessageID, label, newName); err != nil {
+		return nil, err
+	}
+
+	file.OriginalName = newName
+	if err := s.fileRepo.Update(file); err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
 func (s *fileService) Delete(id, userID string) error {
 	file, err := s.GetByID(id, userID)
 	if err != nil {
-		return err
-	}
-
-	channelID, err := s.folderSvc.GetRootChannelID(file.FolderID)
-	if err != nil {
-		return err
-	}
-
-	if err := s.discordSvc.DeleteMessage(channelID, file.DiscordMessageID); err != nil {
 		return err
 	}
 
@@ -241,26 +289,37 @@ func (s *fileService) Delete(id, userID string) error {
 	return s.storageSvc.SubStorageUsed(userID, file.Size)
 }
 
-// resolveChannelAndLabel returns the Discord channel ID and a folder label for the bot message.
-// Root folder: uses its own channel, label = folder name.
-// Sub-folder: walks up to root's channel, label = "root/sub".
+// resolveChannelAndLabel returns the Discord channel ID and folder path label for the bot message.
+// The channel is resolved by FolderService so it can follow either folder-channel or user-channel mode.
 func (s *fileService) resolveChannelAndLabel(folder *model.Folder) (channelID, label string) {
-	label = folder.Name
-
-	if folder.DiscordChannelID != "" {
-		return folder.DiscordChannelID, label
-	}
-
-	rootID, err := s.folderSvc.GetRootChannelID(folder.ID)
+	channelID, err := s.folderSvc.GetRootChannelID(folder.ID)
 	if err != nil {
-		return "", label
+		return "", folder.Name
 	}
 
-	// Build label: "root/sub"
-	parent, err := s.folderRepo.FindByID(*folder.ParentID)
-	if err == nil {
-		label = fmt.Sprintf("%s/%s", parent.Name, folder.Name)
+	return channelID, s.folderPathLabel(folder)
+}
+
+func (s *fileService) folderPathLabel(folder *model.Folder) string {
+	parts := []string{folder.Name}
+	current := folder
+
+	for current.ParentID != nil && *current.ParentID != "" {
+		parent, err := s.folderRepo.FindByID(*current.ParentID)
+		if err != nil {
+			break
+		}
+		parts = append([]string{parent.Name}, parts...)
+		current = parent
 	}
 
-	return rootID, label
+	return strings.Join(parts, "/")
+}
+
+func isValidFileDisplayName(name string) bool {
+	if name == "" || len(name) > 255 {
+		return false
+	}
+	base := filepath.Base(name)
+	return base == name && !strings.ContainsAny(name, `/\`)
 }

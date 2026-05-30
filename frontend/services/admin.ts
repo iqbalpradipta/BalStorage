@@ -30,6 +30,8 @@ interface ApiError {
   message: string;
 }
 
+export type DiscordChannelMode = "folder" | "user";
+
 export const adminService = {
   async listUsers(
     page = 1,
@@ -58,6 +60,26 @@ export const adminService = {
     } catch (error) {
       const apiError = error as ApiError;
       return { success: false, error: apiError.message || "Failed to update tier" };
+    }
+  },
+
+  async getDiscordChannelMode(): Promise<{ success: boolean; mode?: DiscordChannelMode; error?: string }> {
+    try {
+      const response = (await apiClient.get("v1/admin/settings/discord-channel-mode")) as unknown as ApiResponse<{ mode: DiscordChannelMode }>;
+      return { success: true, mode: response.data.mode };
+    } catch (error) {
+      const apiError = error as ApiError;
+      return { success: false, error: apiError.message || "Failed to fetch channel mode" };
+    }
+  },
+
+  async updateDiscordChannelMode(mode: DiscordChannelMode): Promise<{ success: boolean; mode?: DiscordChannelMode; error?: string }> {
+    try {
+      const response = (await apiClient.put("v1/admin/settings/discord-channel-mode", { mode })) as unknown as ApiResponse<{ mode: DiscordChannelMode }>;
+      return { success: true, mode: response.data.mode };
+    } catch (error) {
+      const apiError = error as ApiError;
+      return { success: false, error: apiError.message || "Failed to update channel mode" };
     }
   },
 };

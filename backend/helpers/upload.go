@@ -65,7 +65,7 @@ func SaveUploadedFile(file *multipart.FileHeader, uploadDir string) (*UploadedFi
 	}
 
 	return &UploadedFile{
-		OriginalName: file.Filename,
+		OriginalName: storedName,
 		StoredName:   storedName,
 		MimeType:     mimeType,
 		Size:         file.Size,
@@ -84,13 +84,13 @@ func GenerateFilePath(uploadDir, storedName string) string {
 
 func detectContentType(buf []byte) string {
 	mimeTypes := map[string]string{
-		"\xff\xd8\xff":        "image/jpeg",
-		"\x89PNG\r\n\x1a\n":   "image/png",
-		"GIF89a":              "image/gif",
-		"GIF87a":              "image/gif",
-		"RIFF":                "image/webp",
-		"%PDF":                "application/pdf",
-		"PK\x03\x04":          "application/zip",
+		"\xff\xd8\xff":      "image/jpeg",
+		"\x89PNG\r\n\x1a\n": "image/png",
+		"GIF89a":            "image/gif",
+		"GIF87a":            "image/gif",
+		"RIFF":              "image/webp",
+		"%PDF":              "application/pdf",
+		"PK\x03\x04":        "application/zip",
 	}
 
 	for magic, mime := range mimeTypes {

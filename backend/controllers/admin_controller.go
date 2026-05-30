@@ -63,3 +63,34 @@ func (c *AdminController) UpdateTier(ctx echo.Context) error {
 
 	return helpers.JSON(ctx, http.StatusOK, true, "user tier updated", user)
 }
+
+type updateDiscordChannelModeInput struct {
+	Mode string `json:"mode"`
+}
+
+func (c *AdminController) GetDiscordChannelMode(ctx echo.Context) error {
+	mode, err := c.adminService.GetDiscordChannelMode()
+	if err != nil {
+		return helpers.HandleError(ctx, err)
+	}
+
+	return helpers.JSON(ctx, http.StatusOK, true, "discord channel mode fetched", echo.Map{
+		"mode": mode,
+	})
+}
+
+func (c *AdminController) UpdateDiscordChannelMode(ctx echo.Context) error {
+	var input updateDiscordChannelModeInput
+	if err := ctx.Bind(&input); err != nil || input.Mode == "" {
+		return helpers.JSON(ctx, http.StatusBadRequest, false, "mode is required", nil)
+	}
+
+	mode, err := c.adminService.UpdateDiscordChannelMode(input.Mode)
+	if err != nil {
+		return helpers.HandleError(ctx, err)
+	}
+
+	return helpers.JSON(ctx, http.StatusOK, true, "discord channel mode updated", echo.Map{
+		"mode": mode,
+	})
+}
