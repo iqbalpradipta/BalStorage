@@ -28,6 +28,7 @@ Mapping utama:
 | Upload file | Bot mengirim message + attachment |
 | File name saat upload | Dibuat random berbasis UUID dan tetap memakai extension asli |
 | Rename file | Update nama di DB dan teks message Discord |
+| Grid thumbnail | Melalui backend proxy `/api/v1/files/:id/thumbnail` dengan resize kecil |
 | Preview file | Melalui backend proxy `/api/v1/files/:id/preview` |
 | Download file | Melalui backend proxy `/api/v1/files/:id/download` dengan `Content-Disposition: attachment` |
 | Delete file/folder | Soft delete dulu di DB |
@@ -45,6 +46,7 @@ Catatan: Discord tidak mengizinkan rename attachment yang sudah ter-upload. Rena
 - Rename file.
 - Delete file dan folder dengan soft delete.
 - Preview image, video, dan audio.
+- Thumbnail image di grid memakai hasil resize backend agar file besar tidak langsung diunduh penuh.
 - Download file paksa lewat backend proxy, bukan membuka tab Discord CDN.
 - Grid/list view.
 - Search file.
@@ -140,6 +142,7 @@ DELETE /api/v1/folders/:id
 GET    /api/v1/folders/:id/files
 POST   /api/v1/folders/:id/files
 GET    /api/v1/files/:id
+GET    /api/v1/files/:id/thumbnail
 GET    /api/v1/files/:id/preview
 GET    /api/v1/files/:id/download
 PUT    /api/v1/files/:id
@@ -293,10 +296,11 @@ DELETED_ITEMS_CLEANUP_INTERVAL_HOURS=24
 DELETED_ITEMS_CLEANUP_ENABLED=true
 ```
 
-## Download dan Preview
+## Thumbnail, Download, dan Preview
 
 Frontend tidak lagi membuka URL Discord CDN secara langsung untuk download.
 
+- Thumbnail grid memakai `GET /api/v1/files/:id/thumbnail?size=360`, lalu backend mengambil attachment asli dan mengembalikan JPEG kecil.
 - Preview memakai `GET /api/v1/files/:id/preview`.
 - Download memakai `GET /api/v1/files/:id/download`.
 - Download dipaksa memakai response header `Content-Disposition: attachment`.

@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { FileText, Image as ImageIcon, Video, Music, Code, FileSpreadsheet, Download, Trash2, Eye, MoreVertical, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fileService } from "@/services/file";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +40,7 @@ function getFileIcon(mimeType: string) {
 }
 
 export function FileCard({
+  id,
   name,
   mimeType,
   size,
@@ -48,6 +51,42 @@ export function FileCard({
 }: FileCardProps) {
   const isImage = mimeType.toLowerCase().startsWith("image/");
   const FileIconComponent = getFileIcon(mimeType);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isImage) {
+      return;
+    }
+
+    let currentUrl: string | null = null;
+    let cancelled = false;
+
+    setThumbnailUrl(null);
+    setThumbnailFailed(false);
+
+    fileService
+      .fetchThumbnailBlob(id, 360)
+      .then((blob) => {
+        if (cancelled) {
+          return;
+        }
+        currentUrl = URL.createObjectURL(blob);
+        setThumbnailUrl(currentUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setThumbnailFailed(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+    };
+  }, [id, isImage]);
 
   return (
     <div
@@ -98,7 +137,17 @@ export function FileCard({
 
       {/* Visual Thumbnail Area */}
       <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted/30 border-b border-border/30 relative">
-        {isImage ? (
+        {isImage && thumbnailUrl && !thumbnailFailed ? (
+          <img
+            src={thumbnailUrl}
+            alt={name}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            draggable={false}
+            loading="lazy"
+            decoding="async"
+            onContextMenu={(event) => event.preventDefault()}
+          />
+        ) : isImage ? (
           <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:scale-105 transition-transform duration-300">
             <div className="p-4 rounded-2xl bg-muted/60 text-muted-foreground">
               <ImageIcon className="h-10 w-10 text-muted-foreground/80" />

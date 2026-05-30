@@ -2,6 +2,11 @@ package controllers
 
 import (
 	"fmt"
+	"image"
+	"image/color"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"mime"
 	"net/http"
@@ -125,6 +130,52 @@ func (c *FileController) Preview(ctx echo.Context) error {
 	return c.proxyAttachment(ctx, false)
 }
 
+func (c *FileController) Thumbnail(ctx echo.Context) error {
+	userID := ctx.Get("user_id").(string)
+	role, _ := ctx.Get("role").(string)
+	if role == "admin" {
+		userID = ""
+	}
+
+	file, err := c.fileService.GetByID(ctx.Param("id"), userID)
+	if err != nil {
+		return helpers.HandleError(ctx, err)
+	}
+	if !strings.HasPrefix(strings.ToLower(file.MimeType), "image/") {
+		return helpers.JSON(ctx, http.StatusUnsupportedMediaType, false, "thumbnail is only available for images", nil)
+	}
+
+	resp, err := fetchAllowedAttachment(ctx, file.DiscordAttachmentURL)
+	if err != nil {
+		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
+	}
+	defer resp.Body.Close()
+
+	img, _, err := image.Decode(resp.Body)
+	if err != nil {
+		return helpers.JSON(ctx, http.StatusUnsupportedMediaType, false, "image format is not supported for thumbnail", nil)
+	}
+
+	size, _ := strconv.Atoi(ctx.QueryParam("size"))
+	if size <= 0 {
+		size = 320
+	}
+	if size < 96 {
+		size = 96
+	}
+	if size > 640 {
+		size = 640
+	}
+
+	thumbnail := resizeForThumbnail(img, size)
+	ctx.Response().Header().Set(echo.HeaderContentType, "image/jpeg")
+	ctx.Response().Header().Set(echo.HeaderContentDisposition, mime.FormatMediaType("inline", map[string]string{"filename": safeAttachmentFilename(file.OriginalName) + ".jpg"}))
+	ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
+	ctx.Response().Header().Set("Cache-Control", "private, max-age=86400")
+	ctx.Response().WriteHeader(http.StatusOK)
+	return jpeg.Encode(ctx.Response(), thumbnail, &jpeg.Options{Quality: 72})
+}
+
 func (c *FileController) Download(ctx echo.Context) error {
 	return c.proxyAttachment(ctx, true)
 }
@@ -181,12 +232,7 @@ func (c *FileController) proxyAttachment(ctx echo.Context, forceDownload bool) e
 		return helpers.JSON(ctx, http.StatusBadGateway, false, "invalid attachment source", nil)
 	}
 
-	req, err := http.NewRequestWithContext(ctx.Request().Context(), http.MethodGet, attachmentURL, nil)
-	if err != nil {
-		return helpers.JSON(ctx, http.StatusBadGateway, false, "invalid attachment source", nil)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchAllowedAttachment(ctx, attachmentURL)
 	if err != nil {
 		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
 	}
@@ -220,6 +266,79 @@ func (c *FileController) proxyAttachment(ctx echo.Context, forceDownload bool) e
 	ctx.Response().WriteHeader(http.StatusOK)
 	_, err = io.Copy(ctx.Response(), resp.Body)
 	return err
+}
+
+func fetchAllowedAttachment(ctx echo.Context, attachmentURL string) (*http.Response, error) {
+	attachmentURL = strings.TrimSpace(attachmentURL)
+	if attachmentURL == "" || !isAllowedAttachmentURL(attachmentURL) {
+		return nil, fmt.Errorf("invalid attachment source")
+	}
+
+	req, err := http.NewRequestWithContext(ctx.Request().Context(), http.MethodGet, attachmentURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		resp.Body.Close()
+		return nil, fmt.Errorf("attachment returned status %d", resp.StatusCode)
+	}
+	return resp, nil
+}
+
+func resizeForThumbnail(src image.Image, maxSize int) image.Image {
+	bounds := src.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if width <= 0 || height <= 0 {
+		return image.NewRGBA(image.Rect(0, 0, 1, 1))
+	}
+
+	targetW := width
+	targetH := height
+	if width > maxSize || height > maxSize {
+		if width >= height {
+			targetW = maxSize
+			targetH = height * maxSize / width
+		} else {
+			targetH = maxSize
+			targetW = width * maxSize / height
+		}
+	}
+	if targetW < 1 {
+		targetW = 1
+	}
+	if targetH < 1 {
+		targetH = 1
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+	for y := 0; y < targetH; y++ {
+		sourceY := bounds.Min.Y + y*height/targetH
+		for x := 0; x < targetW; x++ {
+			sourceX := bounds.Min.X + x*width/targetW
+			dst.SetRGBA(x, y, flattenOverDark(src.At(sourceX, sourceY)))
+		}
+	}
+	return dst
+}
+
+func flattenOverDark(c color.Color) color.RGBA {
+	const bgR, bgG, bgB = 15, 23, 42
+	r, g, b, a := c.RGBA()
+	alpha := uint64(a)
+	inverse := uint64(65535) - alpha
+
+	return color.RGBA{
+		R: uint8(((uint64(r)*alpha + uint64(bgR*257)*inverse) / 65535) / 257),
+		G: uint8(((uint64(g)*alpha + uint64(bgG*257)*inverse) / 65535) / 257),
+		B: uint8(((uint64(b)*alpha + uint64(bgB*257)*inverse) / 65535) / 257),
+		A: 255,
+	}
 }
 
 func isAllowedAttachmentURL(rawURL string) bool {

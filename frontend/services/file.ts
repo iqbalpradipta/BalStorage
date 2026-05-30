@@ -58,12 +58,22 @@ export const fileService = {
     return `v1/files/${id}/preview`;
   },
 
+  thumbnailUrl(id: string, size = 320): string {
+    return `v1/files/${id}/thumbnail?size=${size}`;
+  },
+
   downloadUrl(id: string): string {
     return `v1/files/${id}/download`;
   },
 
   async fetchPreviewBlob(id: string): Promise<Blob> {
     return apiClient.getBlob(`v1/files/${id}/preview`);
+  },
+
+  async fetchThumbnailBlob(id: string, size = 320): Promise<Blob> {
+    return apiClient.getBlob(`v1/files/${id}/thumbnail`, {
+      params: { size },
+    });
   },
 
   async download(id: string, filename: string): Promise<{ success: boolean; error?: string }> {
