@@ -89,6 +89,9 @@ func (s *DeletedItemCleanupService) purgeDeletedFiles(cutoff time.Time) error {
 		if err := s.fileRepo.ForceDelete(file.ID); err != nil {
 			return err
 		}
+		if err := DeleteThumbnailCache(file.ID); err != nil {
+			log.Printf("failed to delete thumbnail cache for file %s: %v", file.ID, err)
+		}
 	}
 
 	if len(files) > 0 {
@@ -137,6 +140,11 @@ func (s *DeletedItemCleanupService) purgeDeletedFolders(cutoff time.Time) error 
 		}
 		if err := s.fileRepo.ForceDeleteByIDs(fileIDs); err != nil {
 			return err
+		}
+		for _, fileID := range fileIDs {
+			if err := DeleteThumbnailCache(fileID); err != nil {
+				log.Printf("failed to delete thumbnail cache for file %s: %v", fileID, err)
+			}
 		}
 		if err := s.folderRepo.ForceDeleteByIDs(folderIDs); err != nil {
 			return err

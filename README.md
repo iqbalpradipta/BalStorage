@@ -185,6 +185,11 @@ UPLOAD_DIR=uploads
 DELETED_ITEMS_RETENTION_DAYS=30
 DELETED_ITEMS_CLEANUP_INTERVAL_HOURS=24
 DELETED_ITEMS_CLEANUP_ENABLED=true
+
+THUMBNAIL_CACHE_TTL_DAYS=30
+THUMBNAIL_CACHE_MAX_MB=1024
+THUMBNAIL_CACHE_CLEANUP_INTERVAL_HOURS=24
+THUMBNAIL_CACHE_CLEANUP_ENABLED=true
 ```
 
 `DISCORD_CHANNEL_MODE` tidak dipakai lagi di env. Mode channel disimpan di database dan diatur dari Admin UI.
@@ -300,7 +305,9 @@ DELETED_ITEMS_CLEANUP_ENABLED=true
 
 Frontend tidak lagi membuka URL Discord CDN secara langsung untuk download.
 
-- Thumbnail grid memakai `GET /api/v1/files/:id/thumbnail?size=360`, lalu backend mengambil attachment asli dan mengembalikan JPEG kecil.
+- Thumbnail grid memakai `GET /api/v1/files/:id/thumbnail?size=480`, lalu backend mengambil attachment asli dan mengembalikan JPEG kecil.
+- Thumbnail disimpan otomatis di `UPLOAD_DIR/thumbnails`, sehingga request berikutnya tidak perlu fetch ulang ke Discord.
+- Thumbnail cache dibatasi oleh TTL dan total size. Default: 30 hari dan 1024 MB.
 - Preview memakai `GET /api/v1/files/:id/preview`.
 - Download memakai `GET /api/v1/files/:id/download`.
 - Download dipaksa memakai response header `Content-Disposition: attachment`.

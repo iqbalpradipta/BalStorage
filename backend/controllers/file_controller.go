@@ -11,9 +11,11 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"balStorage/backend/helpers"
 	"balStorage/backend/model"
@@ -145,17 +147,6 @@ func (c *FileController) Thumbnail(ctx echo.Context) error {
 		return helpers.JSON(ctx, http.StatusUnsupportedMediaType, false, "thumbnail is only available for images", nil)
 	}
 
-	resp, err := fetchAllowedAttachment(ctx, file.DiscordAttachmentURL)
-	if err != nil {
-		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
-	}
-	defer resp.Body.Close()
-
-	img, _, err := image.Decode(resp.Body)
-	if err != nil {
-		return helpers.JSON(ctx, http.StatusUnsupportedMediaType, false, "image format is not supported for thumbnail", nil)
-	}
-
 	size, _ := strconv.Atoi(ctx.QueryParam("size"))
 	if size <= 0 {
 		size = 320
@@ -167,7 +158,27 @@ func (c *FileController) Thumbnail(ctx echo.Context) error {
 		size = 640
 	}
 
+	cachePath := services.ThumbnailCachePath(file.ID, size)
+	if _, err := os.Stat(cachePath); err == nil {
+		return serveThumbnailFile(ctx, file.OriginalName, cachePath)
+	}
+
+	resp, err := fetchAllowedAttachment(ctx, file.DiscordAttachmentURL)
+	if err != nil {
+		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
+	}
+	defer resp.Body.Close()
+
+	img, _, err := image.Decode(resp.Body)
+	if err != nil {
+		return helpers.JSON(ctx, http.StatusUnsupportedMediaType, false, "image format is not supported for thumbnail", nil)
+	}
+
 	thumbnail := resizeForThumbnail(img, size)
+	if err := writeThumbnailCache(cachePath, thumbnail); err == nil {
+		return serveThumbnailFile(ctx, file.OriginalName, cachePath)
+	}
+
 	ctx.Response().Header().Set(echo.HeaderContentType, "image/jpeg")
 	ctx.Response().Header().Set(echo.HeaderContentDisposition, mime.FormatMediaType("inline", map[string]string{"filename": safeAttachmentFilename(file.OriginalName) + ".jpg"}))
 	ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
@@ -325,6 +336,56 @@ func resizeForThumbnail(src image.Image, maxSize int) image.Image {
 		}
 	}
 	return dst
+}
+
+func writeThumbnailCache(path string, img image.Image) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+
+	tempFile, err := os.CreateTemp(filepath.Dir(path), "thumb-*.jpg")
+	if err != nil {
+		return err
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	if err := jpeg.Encode(tempFile, img, &jpeg.Options{Quality: 72}); err != nil {
+		tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	return os.Rename(tempPath, path)
+}
+
+func serveThumbnailFile(ctx echo.Context, originalName string, path string) error {
+	_ = os.Chtimes(path, time.Now(), time.Now())
+
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	ctx.Response().Header().Set(echo.HeaderContentType, "image/jpeg")
+	ctx.Response().Header().Set(echo.HeaderContentDisposition, mime.FormatMediaType("inline", map[string]string{"filename": safeAttachmentFilename(originalName) + ".jpg"}))
+	ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
+	ctx.Response().Header().Set("Cache-Control", "private, max-age=86400")
+	ctx.Response().Header().Set(echo.HeaderContentLength, fmt.Sprintf("%d", stat.Size()))
+	ctx.Response().WriteHeader(http.StatusOK)
+	_, err = io.Copy(ctx.Response(), file)
+	return err
 }
 
 func flattenOverDark(c color.Color) color.RGBA {

@@ -36,6 +36,7 @@ func main() {
 		log.Printf("warning: failed to create upload dir: %v", err)
 	}
 	services.NewDeletedItemCleanupService(db, services.NewDiscordService(discordCfg)).Start(context.Background())
+	services.NewThumbnailCacheCleanupService().Start(context.Background())
 
 	e := echo.New()
 	e.HideBanner = true
