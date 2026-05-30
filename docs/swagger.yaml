@@ -1,0 +1,855 @@
+openapi: 3.0.3
+info:
+  title: BalStorage API
+  version: 1.0.0
+  description: API documentation for BalStorage cloud storage.
+
+servers:
+  - url: https://storage.iqbalpradipta.my.id/api/v1
+    description: Production
+  - url: http://localhost:8000/api/v1
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Profile
+  - name: Storage
+  - name: Folders
+  - name: Files
+  - name: Admin
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Check backend and database health
+      responses:
+        "200":
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: Rate limited by IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      description: Rate limited by IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: "#/components/schemas/User"
+                          token:
+                            type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Get authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /stats:
+    get:
+      tags: [Storage]
+      summary: Get storage dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /folders:
+    get:
+      tags: [Folders]
+      summary: List folders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: parent_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Folders fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Folder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Folders]
+      summary: Create folder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFolderRequest"
+      responses:
+        "201":
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Folder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /folders/{id}:
+    get:
+      tags: [Folders]
+      summary: Get folder detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Folder fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Folder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Folders]
+      summary: Rename folder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFolderRequest"
+      responses:
+        "200":
+          description: Folder updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Folder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [Folders]
+      summary: Soft delete folder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Folder deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /folders/{id}/files:
+    get:
+      tags: [Files]
+      summary: List files in folder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          description: Files fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedFilesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Files]
+      summary: Upload one or more files
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "201":
+          description: Files uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /files/{id}:
+    get:
+      tags: [Files]
+      summary: Get file detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: File fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/File"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Files]
+      summary: Rename file
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameFileRequest"
+      responses:
+        "200":
+          description: File renamed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/File"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [Files]
+      summary: Soft delete file
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: File deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /files/{id}/thumbnail:
+    get:
+      tags: [Files]
+      summary: Get public image thumbnail
+      description: Public endpoint. No Authorization header required.
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - name: size
+          in: query
+          required: false
+          description: Thumbnail max dimension. Default 320, minimum 96, maximum 640.
+          schema:
+            type: integer
+            default: 320
+            minimum: 96
+            maximum: 640
+      responses:
+        "200":
+          description: JPEG thumbnail
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "415":
+          description: File is not an image or image format is unsupported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /files/{id}/preview:
+    get:
+      tags: [Files]
+      summary: Get public inline file preview
+      description: Public endpoint. No Authorization header required.
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Original file proxied from Discord attachment
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /files/{id}/download:
+    get:
+      tags: [Files]
+      summary: Download original file
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Original file with attachment content disposition
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List users
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/LimitQuery"
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedUsersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/users/{id}/tier:
+    put:
+      tags: [Admin]
+      summary: Update user tier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTierRequest"
+      responses:
+        "200":
+          description: User tier updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/settings/discord-channel-mode:
+    get:
+      tags: [Admin]
+      summary: Get Discord channel mode
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Discord channel mode fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DiscordChannelModeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Admin]
+      summary: Update Discord channel mode
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDiscordChannelModeRequest"
+      responses:
+        "200":
+          description: Discord channel mode updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DiscordChannelModeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          nullable: true
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+          format: int64
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        tier:
+          type: string
+          example: standard
+        storage_used:
+          type: integer
+          format: int64
+        discord_channel_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Folder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        discord_channel_id:
+          type: string
+          nullable: true
+        file_count:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    File:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        folder_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        original_name:
+          type: string
+        stored_name:
+          type: string
+        mime_type:
+          type: string
+        size:
+          type: integer
+          format: int64
+        discord_message_id:
+          type: string
+        discord_attachment_url:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+        phone:
+          type: string
+          maxLength: 32
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    CreateFolderRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateFolderRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    RenameFileRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: new-name.png
+
+    UpdateTierRequest:
+      type: object
+      required: [tier]
+      properties:
+        tier:
+          type: string
+          example: premium
+
+    UpdateDiscordChannelModeRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [folder, user]
+
+    DiscordChannelModeResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [folder, user]
+
+    PaginatedFilesResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/File"
+                pagination:
+                  $ref: "#/components/schemas/Pagination"
+
+    PaginatedUsersResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/User"
+                pagination:
+                  $ref: "#/components/schemas/Pagination"
+
+    UploadResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      original_name:
+                        type: string
+                      success:
+                        type: boolean
+                      error:
+                        type: string
+                      file:
+                        $ref: "#/components/schemas/File"
+                total:
+                  type: integer
+                success:
+                  type: integer
+                failed:
+                  type: integer

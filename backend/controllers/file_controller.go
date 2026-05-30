@@ -133,13 +133,7 @@ func (c *FileController) Preview(ctx echo.Context) error {
 }
 
 func (c *FileController) Thumbnail(ctx echo.Context) error {
-	userID := ctx.Get("user_id").(string)
-	role, _ := ctx.Get("role").(string)
-	if role == "admin" {
-		userID = ""
-	}
-
-	file, err := c.fileService.GetByID(ctx.Param("id"), userID)
+	file, err := c.fileService.GetByID(ctx.Param("id"), "")
 	if err != nil {
 		return helpers.HandleError(ctx, err)
 	}
@@ -224,10 +218,13 @@ func (c *FileController) Delete(ctx echo.Context) error {
 }
 
 func (c *FileController) proxyAttachment(ctx echo.Context, forceDownload bool) error {
-	userID := ctx.Get("user_id").(string)
-	role, _ := ctx.Get("role").(string)
-	if role == "admin" {
-		userID = ""
+	userID := ""
+	if forceDownload {
+		userID = ctx.Get("user_id").(string)
+		role, _ := ctx.Get("role").(string)
+		if role == "admin" {
+			userID = ""
+		}
 	}
 
 	file, err := c.fileService.GetByID(ctx.Param("id"), userID)

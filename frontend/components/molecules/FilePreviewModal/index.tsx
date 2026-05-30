@@ -46,36 +46,16 @@ export function FilePreviewModal({
   const isVideo = mime.startsWith("video/");
   const isAudio = mime.startsWith("audio/");
   const FileIconComponent = getFileIcon(mimeType);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const previewUrl = open && (isImage || isVideo || isAudio)
+    ? isImage
+      ? fileService.thumbnailUrl(id, 640)
+      : fileService.previewUrl(id)
+    : "";
 
   useEffect(() => {
-    if (!open || (!isImage && !isVideo && !isAudio)) {
-      setPreviewUrl("");
-      return;
-    }
-
-    let objectUrl = "";
-    let cancelled = false;
-
-    setPreviewUrl("");
-
-    const previewRequest = isImage
-      ? fileService.fetchThumbnailBlob(id, 480)
-      : fileService.fetchPreviewBlob(id);
-
-    previewRequest
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-      })
-      .catch(() => setPreviewUrl(""));
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [id, open, isImage, isVideo, isAudio]);
+    setMediaFailed(false);
+  }, [id, open]);
 
   if (!open) return null;
 
@@ -124,18 +104,22 @@ export function FilePreviewModal({
         {/* Media Content Preview Dashboard */}
         <div className="flex-1 flex max-h-[70vh] items-center justify-center overflow-hidden rounded-xl bg-muted/20 border border-border/30 p-2">
           {isImage ? (
-            previewUrl ? (
+            !mediaFailed ? (
               <img
                 src={previewUrl}
                 alt={name}
                 className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md select-none"
                 draggable={false}
+                onError={() => setMediaFailed(true)}
                 onContextMenu={(e) => e.preventDefault()}
               />
             ) : (
-              <div className="text-xs font-semibold text-muted-foreground">Loading preview...</div>
+              <div className="text-xs font-semibold text-muted-foreground">Preview unavailable</div>
             )
           ) : isVideo ? (
+            mediaFailed ? (
+              <div className="text-xs font-semibold text-muted-foreground">Preview unavailable</div>
+            ) : (
             <video
               src={previewUrl}
               controls 
@@ -143,9 +127,14 @@ export function FilePreviewModal({
               autoPlay
               controlsList="nodownload noremoteplayback"
               disablePictureInPicture
+              onError={() => setMediaFailed(true)}
               onContextMenu={(e) => e.preventDefault()}
             />
+            )
           ) : isAudio ? (
+            mediaFailed ? (
+              <div className="text-xs font-semibold text-muted-foreground">Preview unavailable</div>
+            ) : (
             <div className="flex flex-col items-center gap-4 p-8 w-full max-w-md text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary shadow-inner">
                 <Music className="h-10 w-10 text-primary animate-pulse" />
@@ -161,9 +150,11 @@ export function FilePreviewModal({
                 className="w-full mt-2" 
                 autoPlay
                 controlsList="nodownload"
+                onError={() => setMediaFailed(true)}
                 onContextMenu={(e) => e.preventDefault()}
               />
             </div>
+            )
           ) : (
             // Non-previewable Document dashboard
             <div className="flex flex-col items-center gap-5 p-12 text-center max-w-md">

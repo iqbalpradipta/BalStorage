@@ -51,42 +51,11 @@ export function FileCard({
 }: FileCardProps) {
   const isImage = mimeType.toLowerCase().startsWith("image/");
   const FileIconComponent = getFileIcon(mimeType);
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   useEffect(() => {
-    if (!isImage) {
-      return;
-    }
-
-    let currentUrl: string | null = null;
-    let cancelled = false;
-
-    setThumbnailUrl(null);
     setThumbnailFailed(false);
-
-    fileService
-      .fetchThumbnailBlob(id, 480)
-      .then((blob) => {
-        if (cancelled) {
-          return;
-        }
-        currentUrl = URL.createObjectURL(blob);
-        setThumbnailUrl(currentUrl);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setThumbnailFailed(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      if (currentUrl) {
-        URL.revokeObjectURL(currentUrl);
-      }
-    };
-  }, [id, isImage]);
+  }, [id]);
 
   return (
     <div
@@ -137,14 +106,15 @@ export function FileCard({
 
       {/* Visual Thumbnail Area */}
       <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted/30 border-b border-border/30 relative">
-        {isImage && thumbnailUrl && !thumbnailFailed ? (
+        {isImage && !thumbnailFailed ? (
           <img
-            src={thumbnailUrl}
+            src={fileService.thumbnailUrl(id, 480)}
             alt={name}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             draggable={false}
             loading="lazy"
             decoding="async"
+            onError={() => setThumbnailFailed(true)}
             onContextMenu={(event) => event.preventDefault()}
           />
         ) : isImage ? (

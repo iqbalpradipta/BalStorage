@@ -36,6 +36,15 @@ func Register(e *echo.Echo, db *gorm.DB) {
 	folderService := services.NewFolderService(folderRepo, fileRepo, userRepo, settingRepo, discordSvc)
 	folderController := controllers.NewFolderController(folderService)
 
+	// File
+	storageSvc := services.NewStorageService(userRepo, folderRepo, fileRepo)
+	fileService := services.NewFileService(fileRepo, folderRepo, folderService, discordSvc, storageSvc)
+	fileController := controllers.NewFileController(fileService)
+
+	// Public media proxy routes. These do not require Authorization headers.
+	api.GET("/files/:id/thumbnail", fileController.Thumbnail)
+	api.GET("/files/:id/preview", fileController.Preview)
+
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(middlewares.JWTAuth)
@@ -48,16 +57,9 @@ func Register(e *echo.Echo, db *gorm.DB) {
 	protected.PUT("/folders/:id", folderController.Update)
 	protected.DELETE("/folders/:id", folderController.Delete)
 
-	// File
-	storageSvc := services.NewStorageService(userRepo, folderRepo, fileRepo)
-	fileService := services.NewFileService(fileRepo, folderRepo, folderService, discordSvc, storageSvc)
-	fileController := controllers.NewFileController(fileService)
-
 	protected.GET("/folders/:id/files", fileController.ListByFolder)
 	protected.POST("/folders/:id/files", fileController.Upload)
 	protected.GET("/files/:id", fileController.GetByID)
-	protected.GET("/files/:id/thumbnail", fileController.Thumbnail)
-	protected.GET("/files/:id/preview", fileController.Preview)
 	protected.GET("/files/:id/download", fileController.Download)
 	protected.PUT("/files/:id", fileController.Update)
 	protected.DELETE("/files/:id", fileController.Delete)

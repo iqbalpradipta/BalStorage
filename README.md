@@ -67,6 +67,7 @@ Catatan: Discord tidak mengizinkan rename attachment yang sudah ter-upload. Rena
 - Rate limit untuk register dan login.
 - CORS memakai `FRONTEND_ORIGIN`.
 - Download dan preview file tidak membuka URL Discord langsung dari UI.
+- Thumbnail dan preview file dapat diakses tanpa `Authorization` header jika URL file diketahui.
 - URL attachment Discord divalidasi backend sebelum diproxy.
 - Deleted item cleanup otomatis aktif secara default.
 
@@ -121,11 +122,19 @@ discordStorage/
 
 ## API Endpoints
 
+Swagger/OpenAPI spec tersedia di:
+
+```text
+docs/swagger.yaml
+```
+
 ```text
 # Public
 POST   /api/v1/register
 POST   /api/v1/login
 GET    /api/v1/health
+GET    /api/v1/files/:id/thumbnail
+GET    /api/v1/files/:id/preview
 
 # Protected
 GET    /api/v1/profile
@@ -142,8 +151,6 @@ DELETE /api/v1/folders/:id
 GET    /api/v1/folders/:id/files
 POST   /api/v1/folders/:id/files
 GET    /api/v1/files/:id
-GET    /api/v1/files/:id/thumbnail
-GET    /api/v1/files/:id/preview
 GET    /api/v1/files/:id/download
 PUT    /api/v1/files/:id
 DELETE /api/v1/files/:id
@@ -309,11 +316,12 @@ Frontend tidak lagi membuka URL Discord CDN secara langsung untuk download.
 - Thumbnail disimpan otomatis di `UPLOAD_DIR/thumbnails`, sehingga request berikutnya tidak perlu fetch ulang ke Discord.
 - Thumbnail cache dibatasi oleh TTL dan total size. Default: 30 hari dan 1024 MB.
 - Preview memakai `GET /api/v1/files/:id/preview`.
+- Thumbnail dan preview tidak membutuhkan `Authorization` header.
 - Download memakai `GET /api/v1/files/:id/download`.
 - Download dipaksa memakai response header `Content-Disposition: attachment`.
 - UI mencegah context menu pada preview media untuk mengurangi aksi "open image in new tab".
 
-Catatan keamanan: browser tidak bisa 100% mencegah user teknis mengambil resource jika user tersebut memang punya akses authenticated. Tujuan implementasi ini adalah tidak mengekspos URL Discord langsung di UI normal dan membuat tombol download benar-benar melakukan download.
+Catatan keamanan: browser tidak bisa 100% mencegah user teknis mengambil resource jika user tersebut punya URL preview/thumbnail. Tujuan implementasi ini adalah tidak mengekspos URL Discord langsung di UI normal dan membuat tombol download benar-benar melakukan download.
 
 ## CI/CD Jenkins
 

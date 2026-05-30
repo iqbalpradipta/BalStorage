@@ -53,13 +53,15 @@ interface ApiError {
   message: string;
 }
 
+const apiBaseURL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/";
+
 export const fileService = {
   previewUrl(id: string): string {
-    return `v1/files/${id}/preview`;
+    return publicApiUrl(`v1/files/${id}/preview`);
   },
 
   thumbnailUrl(id: string, size = 320): string {
-    return `v1/files/${id}/thumbnail?size=${size}`;
+    return publicApiUrl(`v1/files/${id}/thumbnail?size=${size}`);
   },
 
   downloadUrl(id: string): string {
@@ -171,4 +173,15 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
 function sanitizeDownloadName(filename: string): string {
   const cleaned = filename.trim().replace(/[\\/\r\n\0]/g, "");
   return cleaned || "download";
+}
+
+function publicApiUrl(path: string): string {
+  const normalizedBase = apiBaseURL.endsWith("/") ? apiBaseURL : `${apiBaseURL}/`;
+  const normalizedPath = path.replace(/^\/+/, "");
+
+  if (normalizedBase.startsWith("http://") || normalizedBase.startsWith("https://")) {
+    return new URL(normalizedPath, normalizedBase).toString();
+  }
+
+  return `${normalizedBase}${normalizedPath}`;
 }
