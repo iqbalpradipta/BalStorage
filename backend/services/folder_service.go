@@ -45,18 +45,15 @@ func NewFolderService(folderRepo repository.FolderRepository, fileRepo repositor
 }
 
 func (s *folderService) Create(userID string, input model.CreateFolderInput) (*model.Folder, error) {
-	if input.Name == "" {
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
 		return nil, utils.ErrBadRequest
 	}
-
-	existing, err := s.folderRepo.FindByNameAndUserID(input.Name, userID)
-	if err == nil && existing != nil {
-		return nil, utils.ErrConflict
-	}
+	parentID := normalizeFolderParentID(input.ParentID)
 
 	// Validate parent if sub-folder
-	if input.ParentID != nil && *input.ParentID != "" {
-		parent, err := s.folderRepo.FindByID(*input.ParentID)
+	if parentID != nil {
+		parent, err := s.folderRepo.FindByID(*parentID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil, utils.ErrNotFound
@@ -68,6 +65,14 @@ func (s *folderService) Create(userID string, input model.CreateFolderInput) (*m
 		}
 	}
 
+	existing, err := s.folderRepo.FindByNameUserIDAndParentID(name, userID, parentID)
+	if err == nil && existing != nil {
+		return nil, utils.ErrConflict
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
 	var channelID string
 	if s.useUserChannelMode() {
 		if _, err := s.ensureUserChannel(userID); err != nil {
@@ -75,8 +80,8 @@ func (s *folderService) Create(userID string, input model.CreateFolderInput) (*m
 		}
 	} else {
 		// Only create Discord channel for root folders (not sub-folders).
-		if input.ParentID == nil || *input.ParentID == "" {
-			channelID, err = s.discordSvc.CreateChannel(input.Name)
+		if parentID == nil {
+			channelID, err = s.discordSvc.CreateChannel(name)
 			if err != nil {
 				return nil, err
 			}
@@ -85,8 +90,8 @@ func (s *folderService) Create(userID string, input model.CreateFolderInput) (*m
 
 	folder := &model.Folder{
 		UserID:           userID,
-		ParentID:         input.ParentID,
-		Name:             input.Name,
+		ParentID:         parentID,
+		Name:             name,
 		DiscordChannelID: optionalString(channelID),
 	}
 
@@ -137,19 +142,31 @@ func (s *folderService) Update(id, userID string, input model.UpdateFolderInput)
 		return nil, err
 	}
 
-	if input.Name == "" {
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
 		return nil, utils.ErrBadRequest
+	}
+	if name == folder.Name {
+		return folder, nil
+	}
+
+	existing, err := s.folderRepo.FindByNameUserIDAndParentID(name, folder.UserID, folder.ParentID)
+	if err == nil && existing != nil && existing.ID != folder.ID {
+		return nil, utils.ErrConflict
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
 	}
 
 	// In folder mode, root folders own Discord channels. In user mode, folder
 	// rename only changes the DB folder name; the user channel stays stable.
 	if !s.useUserChannelMode() && hasStringValue(folder.DiscordChannelID) {
-		if err := s.discordSvc.RenameChannel(*folder.DiscordChannelID, input.Name); err != nil {
+		if err := s.discordSvc.RenameChannel(*folder.DiscordChannelID, name); err != nil {
 			return nil, err
 		}
 	}
 
-	folder.Name = input.Name
+	folder.Name = name
 	if err := s.folderRepo.Update(folder); err != nil {
 		return nil, err
 	}
@@ -268,6 +285,17 @@ func optionalString(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+func normalizeFolderParentID(parentID *string) *string {
+	if parentID == nil {
+		return nil
+	}
+	normalized := strings.TrimSpace(*parentID)
+	if normalized == "" {
+		return nil
+	}
+	return &normalized
 }
 
 func hasStringValue(value *string) bool {

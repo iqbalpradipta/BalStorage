@@ -12,7 +12,7 @@ type FolderRepository interface {
 	FindByID(id string) (*model.Folder, error)
 	FindByUserID(userID string) ([]model.Folder, error)
 	FindByUserIDAndParentID(userID string, parentID *string) ([]model.Folder, error)
-	FindByNameAndUserID(name, userID string) (*model.Folder, error)
+	FindByNameUserIDAndParentID(name, userID string, parentID *string) (*model.Folder, error)
 	Create(folder *model.Folder) error
 	Update(folder *model.Folder) error
 	Delete(id string) error
@@ -65,9 +65,16 @@ func (r *folderRepository) FindByUserIDAndParentID(userID string, parentID *stri
 	return folders, err
 }
 
-func (r *folderRepository) FindByNameAndUserID(name, userID string) (*model.Folder, error) {
+func (r *folderRepository) FindByNameUserIDAndParentID(name, userID string, parentID *string) (*model.Folder, error) {
 	var folder model.Folder
-	err := r.db.Where("name = ? AND user_id = ?", name, userID).First(&folder).Error
+	q := r.db.Where("name = ? AND user_id = ?", name, userID)
+	if parentID == nil {
+		q = q.Where("parent_id IS NULL")
+	} else {
+		q = q.Where("parent_id = ?", *parentID)
+	}
+
+	err := q.First(&folder).Error
 	if err != nil {
 		return nil, err
 	}
