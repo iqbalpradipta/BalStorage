@@ -157,7 +157,7 @@ func (c *FileController) Thumbnail(ctx echo.Context) error {
 		return serveThumbnailFile(ctx, file.OriginalName, cachePath)
 	}
 
-	resp, err := fetchAllowedAttachment(ctx, file.DiscordAttachmentURL)
+	resp, err := c.fetchAttachmentWithRefresh(ctx, file)
 	if err != nil {
 		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
 	}
@@ -232,23 +232,11 @@ func (c *FileController) proxyAttachment(ctx echo.Context, forceDownload bool) e
 		return helpers.HandleError(ctx, err)
 	}
 
-	attachmentURL := strings.TrimSpace(file.DiscordAttachmentURL)
-	if attachmentURL == "" {
-		return helpers.JSON(ctx, http.StatusNotFound, false, "file attachment not found", nil)
-	}
-	if !isAllowedAttachmentURL(attachmentURL) {
-		return helpers.JSON(ctx, http.StatusBadGateway, false, "invalid attachment source", nil)
-	}
-
-	resp, err := fetchAllowedAttachment(ctx, attachmentURL)
+	resp, err := c.fetchAttachmentWithRefresh(ctx, file)
 	if err != nil {
 		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return helpers.JSON(ctx, http.StatusBadGateway, false, "failed to fetch attachment", nil)
-	}
 
 	filename := safeAttachmentFilename(file.OriginalName)
 	contentType := file.MimeType
@@ -274,6 +262,20 @@ func (c *FileController) proxyAttachment(ctx echo.Context, forceDownload bool) e
 	ctx.Response().WriteHeader(http.StatusOK)
 	_, err = io.Copy(ctx.Response(), resp.Body)
 	return err
+}
+
+func (c *FileController) fetchAttachmentWithRefresh(ctx echo.Context, file *model.File) (*http.Response, error) {
+	resp, err := fetchAllowedAttachment(ctx, file.DiscordAttachmentURL)
+	if err == nil {
+		return resp, nil
+	}
+
+	refreshedURL, refreshErr := c.fileService.RefreshAttachmentURL(file)
+	if refreshErr != nil {
+		return nil, err
+	}
+
+	return fetchAllowedAttachment(ctx, refreshedURL)
 }
 
 func fetchAllowedAttachment(ctx echo.Context, attachmentURL string) (*http.Response, error) {

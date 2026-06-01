@@ -706,6 +706,8 @@ components:
         size:
           type: integer
           format: int64
+        discord_channel_id:
+          type: string
         discord_message_id:
           type: string
         discord_attachment_url:

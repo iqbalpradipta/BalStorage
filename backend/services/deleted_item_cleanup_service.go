@@ -83,7 +83,7 @@ func (s *DeletedItemCleanupService) purgeDeletedFiles(cutoff time.Time) error {
 	}
 
 	for _, file := range files {
-		if err := s.deleteDiscordMessage(file.FolderID, file.UserID, file.DiscordMessageID); err != nil {
+		if err := s.deleteDiscordMessage(file.FolderID, file.UserID, file.DiscordChannelID, file.DiscordMessageID); err != nil {
 			return err
 		}
 		if err := s.fileRepo.ForceDelete(file.ID); err != nil {
@@ -120,7 +120,7 @@ func (s *DeletedItemCleanupService) purgeDeletedFolders(cutoff time.Time) error 
 
 		releasedByUser := map[string]int64{}
 		for _, file := range files {
-			if err := s.deleteDiscordMessage(file.FolderID, file.UserID, file.DiscordMessageID); err != nil {
+			if err := s.deleteDiscordMessage(file.FolderID, file.UserID, file.DiscordChannelID, file.DiscordMessageID); err != nil {
 				return err
 			}
 			if !file.DeletedAt.Valid {
@@ -160,14 +160,18 @@ func (s *DeletedItemCleanupService) purgeDeletedFolders(cutoff time.Time) error 
 	return nil
 }
 
-func (s *DeletedItemCleanupService) deleteDiscordMessage(folderID, userID, messageID string) error {
+func (s *DeletedItemCleanupService) deleteDiscordMessage(folderID, userID, channelID, messageID string) error {
 	if messageID == "" {
 		return nil
 	}
 
-	channelID, err := s.resolveDeletedFileChannel(folderID, userID)
-	if err != nil {
-		return err
+	channelID = strings.TrimSpace(channelID)
+	if channelID == "" {
+		resolvedChannelID, err := s.resolveDeletedFileChannel(folderID, userID)
+		if err != nil {
+			return err
+		}
+		channelID = resolvedChannelID
 	}
 	if channelID == "" {
 		return nil

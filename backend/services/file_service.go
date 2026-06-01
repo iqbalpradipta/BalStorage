@@ -25,6 +25,7 @@ type FileService interface {
 	UploadMultiple(userID, folderID, uploadDir string, fileHeaders []*multipart.FileHeader) ([]UploadResult, error)
 	ListByFolder(folderID, userID string, page, limit int) ([]model.File, int64, error)
 	GetByID(id, userID string) (*model.File, error)
+	RefreshAttachmentURL(file *model.File) (string, error)
 	Rename(id, userID, newName string) (*model.File, error)
 	Delete(id, userID string) error
 }
@@ -90,6 +91,7 @@ func (s *fileService) Upload(userID, folderID, uploadDir string, fileHeader *mul
 		StoredName:           uploaded.StoredName,
 		MimeType:             uploaded.MimeType,
 		Size:                 uploaded.Size,
+		DiscordChannelID:     discordFile.ChannelID,
 		DiscordMessageID:     discordFile.MessageID,
 		DiscordAttachmentURL: discordFile.AttachmentURL,
 	}
@@ -158,6 +160,7 @@ func (s *fileService) uploadSingle(folder *model.Folder, userID, uploadDir strin
 		StoredName:           uploaded.StoredName,
 		MimeType:             uploaded.MimeType,
 		Size:                 uploaded.Size,
+		DiscordChannelID:     discordFile.ChannelID,
 		DiscordMessageID:     discordFile.MessageID,
 		DiscordAttachmentURL: discordFile.AttachmentURL,
 	}
@@ -243,6 +246,37 @@ func (s *fileService) GetByID(id, userID string) (*model.File, error) {
 	return file, nil
 }
 
+func (s *fileService) RefreshAttachmentURL(file *model.File) (string, error) {
+	if file == nil || file.DiscordMessageID == "" {
+		return "", utils.ErrNotFound
+	}
+
+	channelID := strings.TrimSpace(file.DiscordChannelID)
+	if channelID == "" {
+		folder, err := s.folderRepo.FindByID(file.FolderID)
+		if err != nil {
+			return "", err
+		}
+		channelID, _ = s.resolveChannelAndLabel(folder)
+	}
+	if channelID == "" {
+		return "", gorm.ErrRecordNotFound
+	}
+
+	attachmentURL, err := s.discordSvc.GetMessageAttachment(channelID, file.DiscordMessageID)
+	if err != nil {
+		return "", err
+	}
+
+	file.DiscordChannelID = channelID
+	file.DiscordAttachmentURL = attachmentURL
+	if err := s.fileRepo.Update(file); err != nil {
+		return "", err
+	}
+
+	return attachmentURL, nil
+}
+
 func (s *fileService) Rename(id, userID, newName string) (*model.File, error) {
 	file, err := s.GetByID(id, userID)
 	if err != nil {
@@ -259,7 +293,11 @@ func (s *fileService) Rename(id, userID, newName string) (*model.File, error) {
 		return nil, err
 	}
 
-	channelID, label := s.resolveChannelAndLabel(folder)
+	channelID := strings.TrimSpace(file.DiscordChannelID)
+	label := s.folderPathLabel(folder)
+	if channelID == "" {
+		channelID, label = s.resolveChannelAndLabel(folder)
+	}
 	if channelID == "" {
 		return nil, gorm.ErrRecordNotFound
 	}
