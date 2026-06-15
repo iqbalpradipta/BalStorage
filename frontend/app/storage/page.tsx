@@ -153,7 +153,7 @@ export default function StoragePage() {
           <div className="flex items-center gap-1.5">
             <HardDrive className="h-4 w-4 text-secondary" />
             <span>
-              {folders.reduce((acc, curr) => acc + (curr.file_count || 0), 0)} Aggregated Files
+              {folders.reduce((acc, curr) => acc + (curr.file_count || 0), 0)} Aggregated Items
             </span>
           </div>
         </div>
@@ -242,3 +242,4 @@ export default function StoragePage() {
     </div>
   );
 }
+

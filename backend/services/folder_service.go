@@ -112,8 +112,9 @@ func (s *folderService) List(userID string, parentID *string) ([]model.Folder, e
 	}
 
 	for i := range folders {
-		count, _ := s.fileRepo.CountByFolderID(folders[i].ID)
-		folders[i].FileCount = count
+		fileCount, _ := s.fileRepo.CountByFolderID(folders[i].ID)
+		subFolderCount, _ := s.folderRepo.CountByParentID(folders[i].ID)
+		folders[i].FileCount = fileCount + subFolderCount
 	}
 
 	return folders, nil
@@ -408,3 +409,4 @@ func normalizeDiscordChannelName(name string) string {
 	}
 	return result
 }
+

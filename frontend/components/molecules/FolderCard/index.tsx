@@ -82,7 +82,7 @@ export function FolderCard({
           <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary/45" />
             <span>
-              {fileCount} {fileCount === 1 ? "file" : "files"}
+              {fileCount} {fileCount === 1 ? "item" : "items"}
             </span>
           </div>
         </div>
@@ -97,3 +97,4 @@ export function FolderCard({
     </div>
   );
 }
+

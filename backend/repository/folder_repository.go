@@ -17,6 +17,7 @@ type FolderRepository interface {
 	Update(folder *model.Folder) error
 	Delete(id string) error
 	DeleteByParentID(parentID string) error
+	CountByParentID(parentID string) (int64, error)
 	DeleteByIDs(ids []string) error
 	FindByIDUnscoped(id string) (*model.Folder, error)
 	FindDescendantIDs(parentID string) ([]string, error)
@@ -103,6 +104,12 @@ func (r *folderRepository) DeleteByIDs(ids []string) error {
 	}
 	return r.db.Delete(&model.Folder{}, "id IN ?", ids).Error
 }
+func (r *folderRepository) CountByParentID(parentID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Folder{}).Where("parent_id = ?", parentID).Count(&count).Error
+	return count, err
+}
+
 
 func (r *folderRepository) FindByIDUnscoped(id string) (*model.Folder, error) {
 	var folder model.Folder
