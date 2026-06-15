@@ -7,6 +7,7 @@ import (
 	_ "image/gif"
 	"image/jpeg"
 	_ "image/png"
+	_ "golang.org/x/image/webp"
 	"io"
 	"mime"
 	"net/http"
