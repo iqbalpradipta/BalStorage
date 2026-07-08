@@ -138,8 +138,8 @@ export function LoginForm() {
         </Button>
       </form>
 
-      {/* Footer Registration Link */}
-      <div className="mt-6 text-center text-xs text-muted-foreground border-t border-border/30 pt-4">
+      {/* Footer Registration Link - Hidden */}
+      {/* <div className="mt-6 text-center text-xs text-muted-foreground border-t border-border/30 pt-4">
         Don&apos;t have an account?{" "}
         <Link
           href="/register"
@@ -147,7 +147,7 @@ export function LoginForm() {
         >
           Create account
         </Link>
-      </div>
+      </div> */}
     </div>
   );
 }
