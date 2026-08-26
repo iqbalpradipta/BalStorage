@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Search, Grid, List, FolderOpen, FileText, RefreshCw, Trash2, Download, Eye, Folder, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,8 @@ function getCategory(mimeType: string): "image" | "video" | "audio" | "document"
   return "other";
 }
 
+const PAGE_SIZE = 50;
+
 export default function FolderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -81,10 +83,13 @@ export default function FolderDetailPage() {
   const [folder, setFolder] = useState<Folder | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
-  
+
+  const currentPageRef = useRef(1);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   // Custom modal states
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
@@ -93,6 +98,10 @@ export default function FolderDetailPage() {
 
   // Sub-folder states
   const [subFolders, setSubFolders] = useState<SubFolder[]>([]);
+  const [subTotal, setSubTotal] = useState(0);
+  const [subPage, setSubPage] = useState(1);
+  const [loadingSubs, setLoadingSubs] = useState(false);
+  const [folderSearch, setFolderSearch] = useState("");
   const [createSubModalOpen, setCreateSubModalOpen] = useState(false);
   const [subToDelete, setSubToDelete] = useState<SubFolder | null>(null);
   const [subDeleteOpen, setSubDeleteOpen] = useState(false);
@@ -106,27 +115,82 @@ export default function FolderDetailPage() {
 
   const fetchFiles = useCallback(async () => {
     setLoading(true);
+    currentPageRef.current = 1;
+    setHasMore(true);
     try {
-      const result = await fileService.listByFolder(folderId, page, 100); // load more to filter cleanly
+      const result = await fileService.listByFolder(folderId, 1, PAGE_SIZE);
       if (result.success) {
-        setFiles(result.data || []);
-        setTotal(result.pagination?.total || 0);
+        const data = result.data || [];
+        setFiles(data);
+        setTotal(result.pagination?.total || data.length);
+        setHasMore(data.length >= PAGE_SIZE);
       } else {
         customToast.error("Failed to Load Files", result.error || "Could not retrieve attachment list.");
+        setHasMore(false);
       }
     } catch (err: any) {
       customToast.error("Error", err.message || "An unexpected error occurred.");
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
-  }, [folderId, page]);
+  }, [folderId]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPageRef.current + 1;
+      const result = await fileService.listByFolder(folderId, nextPage, PAGE_SIZE);
+      if (result.success) {
+        const newData = result.data || [];
+        if (newData.length > 0) {
+          currentPageRef.current = nextPage;
+          setFiles((prev) => [...prev, ...newData]);
+          setTotal(result.pagination?.total || total + newData.length);
+          setHasMore(newData.length >= PAGE_SIZE);
+        } else {
+          setHasMore(false);
+        }
+      } else {
+        setHasMore(false);
+      }
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [folderId, hasMore, loadingMore, loading, total]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const fetchSubFolders = useCallback(async () => {
-    const res = await folderService.list(folderId);
+    setLoadingSubs(true);
+    const res = await folderService.list(folderId, subPage, PAGE_SIZE, folderSearch);
     if (res.success) {
-      setSubFolders(res.data || []);
+      const data = res.data || [];
+      setSubFolders(data);
+      setSubTotal(res.pagination?.total || data.length);
     }
-  }, [folderId]);
+    setLoadingSubs(false);
+  }, [folderId, subPage, PAGE_SIZE, folderSearch]);
+
+  useEffect(() => {
+    fetchSubFolders();
+  }, [fetchSubFolders, subPage, folderSearch]);
 
   useEffect(() => {
     folderService.getById(folderId).then((res) => {
@@ -246,8 +310,6 @@ export default function FolderDetailPage() {
     }
   };
 
-  const totalPages = Math.ceil(total / 20);
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Dynamic Header & Breadcrumbs */}
@@ -314,13 +376,25 @@ export default function FolderDetailPage() {
       <UploadZone onUpload={handleUpload} />
 
       {/* Sub-Folders Section */}
-      {subFolders.length > 0 && (
+      {(subFolders.length > 0 || folderSearch) && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <Folder className="h-4 w-4" />
               Sub-folders
             </h2>
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search sub-folders..."
+                value={folderSearch}
+                onChange={(e) => {
+                  setFolderSearch(e.target.value);
+                  setSubPage(1);
+                }}
+                className="pl-8 h-8 rounded-lg bg-background/50 border-border/60 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-xs w-full"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10">
             {subFolders.map((sf) => (
@@ -333,6 +407,38 @@ export default function FolderDetailPage() {
                 onDelete={() => { setSubToDelete(sf); setSubDeleteOpen(true); }}
               />
             ))}
+          </div>
+          {subFolders.length === 0 && !loadingSubs && (
+            <p className="text-xs text-muted-foreground text-center py-4">No sub-folders found.</p>
+          )}
+        </div>
+      )}
+
+      {/* Sub-folder Numbered Pagination */}
+      {!loadingSubs && subTotal > PAGE_SIZE && (
+        <div className="flex items-center justify-between p-4 rounded-xl border border-border/40 bg-card text-xs font-semibold">
+          <p className="text-muted-foreground">
+            Page {subPage} of {Math.ceil(subTotal / PAGE_SIZE)}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={subPage <= 1}
+              onClick={() => setSubPage((p) => p - 1)}
+              className="h-8 rounded-lg cursor-pointer text-xs"
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={subPage >= Math.ceil(subTotal / PAGE_SIZE)}
+              onClick={() => setSubPage((p) => p + 1)}
+              className="h-8 rounded-lg cursor-pointer text-xs"
+            >
+              Next
+            </Button>
           </div>
         </div>
       )}
@@ -520,32 +626,37 @@ export default function FolderDetailPage() {
           </div>
         )}
 
-        {/* Pagination Details */}
-        {totalPages > 1 && (
+        {/* Infinite Scroll Sentinel */}
+        {hasMore && !loading && (
+          <div ref={sentinelRef} className="flex justify-center py-4">
+            {loadingMore && (
+              <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        )}
+
+        {/* Pagination Bar */}
+        {!loading && total > PAGE_SIZE && (
           <div className="flex items-center justify-between p-4 rounded-xl border border-border/40 bg-card text-xs font-semibold">
             <p className="text-muted-foreground">
-              Page {page} of {totalPages}
+              Showing {files.length} of {total} items — Page {Math.ceil(files.length / PAGE_SIZE)} of {Math.ceil(total / PAGE_SIZE)}
             </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="h-8 rounded-lg cursor-pointer text-xs"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-                className="h-8 rounded-lg cursor-pointer text-xs"
-              >
-                Next
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!hasMore || loadingMore}
+              onClick={loadMore}
+              className="h-8 rounded-lg cursor-pointer text-xs"
+            >
+              {loadingMore ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Load More"
+              )}
+            </Button>
           </div>
         )}
       </div>

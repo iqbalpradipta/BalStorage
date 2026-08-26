@@ -24,10 +24,15 @@ type FileService interface {
 	Upload(userID, folderID, uploadDir string, fileHeader *multipart.FileHeader) (*model.File, error)
 	UploadMultiple(userID, folderID, uploadDir string, fileHeaders []*multipart.FileHeader) ([]UploadResult, error)
 	ListByFolder(folderID, userID string, page, limit int) ([]model.File, int64, error)
+	ListByUser(userID string, page, limit int) ([]model.File, int64, error)
 	GetByID(id, userID string) (*model.File, error)
 	RefreshAttachmentURL(file *model.File) (string, error)
 	Rename(id, userID, newName string) (*model.File, error)
 	Delete(id, userID string) error
+}
+
+func (s *fileService) ListByUser(userID string, page, limit int) ([]model.File, int64, error) {
+	return s.fileRepo.FindByUserID(userID, page, limit)
 }
 
 type fileService struct {

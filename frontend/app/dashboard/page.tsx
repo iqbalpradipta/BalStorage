@@ -74,7 +74,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [files, setFiles] = useState<FileItem[]>([]);
+  const [totalFiles, setTotalFiles] = useState(0);
   const [latency, setLatency] = useState<number>(0);
   const [tier, setTier] = useState<{ name: string; label: string; limit: number }>({ name: "standard", label: "Standard Plan", limit: 1 * 1024 * 1024 * 1024 });
 
@@ -112,6 +112,7 @@ export default function DashboardPage() {
 
       if (statsRes.success && statsRes.data) {
         setTotalSize(statsRes.data.total_size);
+        setTotalFiles(statsRes.data.total_files);
         setTier(statsRes.data.tier);
         setCategoryBreakdown({
           image: statsRes.data.category_breakdown.image || { size: 0, count: 0 },
@@ -123,33 +124,12 @@ export default function DashboardPage() {
       }
 
       if (fetchedFolders.length === 0) {
-        setFiles([]);
         setRecentUploads([]);
         setLoading(false);
         return;
       }
 
-      // Fetch files for all folders for recent uploads
-      const fileFetchPromises = fetchedFolders.map((f) =>
-        fileService.listByFolder(f.id, 1, 100)
-      );
-
-      const fileFetchResults = await Promise.all(fileFetchPromises);
-
-      const allFiles: FileItem[] = [];
-      fileFetchResults.forEach((res) => {
-        if (res.success && res.data) {
-          allFiles.push(...res.data);
-        }
-      });
-
-      setFiles(allFiles);
-
-      // Sort files by date for recent uploads
-      const sortedFiles = [...allFiles].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setRecentUploads(sortedFiles.slice(0, 5));
+      setRecentUploads([]);
 
     } catch (error) {
       customToast.error("System Error", "Could not complete analytics calculation.");
@@ -274,11 +254,11 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mt-4">
-                <div className="text-2xl font-bold tracking-tight text-foreground">{files.length}</div>
+                <div className="text-2xl font-bold tracking-tight text-foreground">{totalFiles}</div>
                 <p className="text-xs text-muted-foreground mt-1">discord attachment objects</p>
               </div>
               <div className="mt-4 flex items-center gap-1 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">{(files.length / Math.max(folders.length, 1)).toFixed(1)}</span>
+                <span className="font-semibold text-foreground">{(totalFiles / Math.max(folders.length, 1)).toFixed(1)}</span>
                 <span>files avg. per folder</span>
               </div>
             </div>
@@ -311,7 +291,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">Distribution of files by type categories</p>
               </div>
 
-              {files.length === 0 ? (
+              {totalFiles === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
                   <HardDrive className="h-12 w-12 text-muted-foreground/30 mb-2" />
                   <p className="text-sm font-medium">No storage distribution data</p>

@@ -7,6 +7,8 @@ import Cookies from "js-cookie";
 const baseURL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/";
 
+let isRedirectingToLogin = false;
+
 const apiClient = axios.create({
   baseURL,
   timeout: 30000,
@@ -41,10 +43,13 @@ apiClient.interceptors.response.use(
       typeof window !== "undefined" && window.location.pathname === "/login";
 
     if (error.response?.status === 401 && !isAuthRequest && !isLoginPage) {
-      Cookies.remove("auth_token");
-      Cookies.remove("user");
       if (typeof window !== "undefined") {
-        window.location.href = "/login";
+        if (!isRedirectingToLogin) {
+          isRedirectingToLogin = true;
+          Cookies.remove("auth_token");
+          Cookies.remove("user");
+          window.location.replace("/login");
+        }
       }
     }
 

@@ -73,6 +73,37 @@ func (c *FileController) ListByFolder(ctx echo.Context) error {
 	})
 }
 
+func (c *FileController) ListByUser(ctx echo.Context) error {
+	userID := ctx.Get("user_id").(string)
+
+	page, _ := strconv.Atoi(ctx.QueryParam("page"))
+	if page <= 0 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(ctx.QueryParam("limit"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	files, total, err := c.fileService.ListByUser(userID, page, limit)
+	if err != nil {
+		return helpers.HandleError(ctx, err)
+	}
+
+	if files == nil {
+		files = []model.File{}
+	}
+
+	return helpers.JSON(ctx, http.StatusOK, true, "files fetched", echo.Map{
+		"data": files,
+		"pagination": echo.Map{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	})
+}
+
 func (c *FileController) Upload(ctx echo.Context) error {
 	userID := ctx.Get("user_id").(string)
 	folderID := ctx.Param("id")

@@ -59,6 +59,7 @@ func Register(e *echo.Echo, db *gorm.DB) {
 
 	protected.GET("/folders/:id/files", fileController.ListByFolder)
 	protected.POST("/folders/:id/files", fileController.Upload)
+	protected.GET("/files", fileController.ListByUser)
 	protected.GET("/files/:id", fileController.GetByID)
 	protected.GET("/files/:id/download", fileController.Download)
 	protected.PUT("/files/:id", fileController.Update)

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 
 	"balStorage/backend/helpers"
 	"balStorage/backend/model"
@@ -32,7 +33,17 @@ func (c *FolderController) List(ctx echo.Context) error {
 		parentID = &pid
 	}
 
-	folders, err := c.folderService.List(userID, parentID)
+	page, _ := strconv.Atoi(ctx.QueryParam("page"))
+	if page <= 0 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(ctx.QueryParam("limit"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	search := ctx.QueryParam("search")
+	folders, total, err := c.folderService.List(userID, parentID, page, limit, search)
 	if err != nil {
 		return helpers.HandleError(ctx, err)
 	}
@@ -41,7 +52,14 @@ func (c *FolderController) List(ctx echo.Context) error {
 		folders = []model.Folder{}
 	}
 
-	return helpers.JSON(ctx, http.StatusOK, true, "folders fetched", folders)
+	return helpers.JSON(ctx, http.StatusOK, true, "folders fetched", echo.Map{
+		"data": folders,
+		"pagination": echo.Map{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	})
 }
 
 func (c *FolderController) Create(ctx echo.Context) error {

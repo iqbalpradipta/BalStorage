@@ -11,7 +11,7 @@ import (
 type FolderRepository interface {
 	FindByID(id string) (*model.Folder, error)
 	FindByUserID(userID string) ([]model.Folder, error)
-	FindByUserIDAndParentID(userID string, parentID *string) ([]model.Folder, error)
+	FindByUserIDAndParentID(userID string, parentID *string, page, limit int, search string) ([]model.Folder, int64, error)
 	FindByNameUserIDAndParentID(name, userID string, parentID *string) (*model.Folder, error)
 	Create(folder *model.Folder) error
 	Update(folder *model.Folder) error
@@ -51,8 +51,9 @@ func (r *folderRepository) FindByUserID(userID string) ([]model.Folder, error) {
 	return folders, err
 }
 
-func (r *folderRepository) FindByUserIDAndParentID(userID string, parentID *string) ([]model.Folder, error) {
+func (r *folderRepository) FindByUserIDAndParentID(userID string, parentID *string, page, limit int, search string) ([]model.Folder, int64, error) {
 	var folders []model.Folder
+	var total int64
 	q := r.db
 	if userID != "" {
 		q = q.Where("user_id = ?", userID)
@@ -62,8 +63,19 @@ func (r *folderRepository) FindByUserIDAndParentID(userID string, parentID *stri
 	} else {
 		q = q.Where("parent_id = ?", *parentID)
 	}
-	err := q.Order("created_at DESC").Find(&folders).Error
-	return folders, err
+	if search != "" {
+		q = q.Where("name ILIKE ?", "%"+search+"%")
+	}
+
+	if err := q.Model(&model.Folder{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := q.Order("created_at DESC").
+		Limit(limit).
+		Offset((page - 1) * limit).
+		Find(&folders).Error
+	return folders, total, err
 }
 
 func (r *folderRepository) FindByNameUserIDAndParentID(name, userID string, parentID *string) (*model.Folder, error) {
@@ -109,7 +121,6 @@ func (r *folderRepository) CountByParentID(parentID string) (int64, error) {
 	err := r.db.Model(&model.Folder{}).Where("parent_id = ?", parentID).Count(&count).Error
 	return count, err
 }
-
 
 func (r *folderRepository) FindByIDUnscoped(id string) (*model.Folder, error) {
 	var folder model.Folder

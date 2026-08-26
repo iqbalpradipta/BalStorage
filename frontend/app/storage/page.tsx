@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, FolderOpen, HardDrive, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,20 @@ interface Folder {
   file_count?: number;
 }
 
+const PAGE_SIZE = 50;
+
 export default function StoragePage() {
   const router = useRouter();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+
+  const currentPageRef = useRef(1);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Custom modal states
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -34,19 +42,70 @@ export default function StoragePage() {
 
   const fetchFolders = useCallback(async () => {
     setLoading(true);
+    currentPageRef.current = 1;
+    setHasMore(true);
     try {
-      const result = await folderService.list();
+      const result = await folderService.list(undefined, 1, PAGE_SIZE, searchQuery);
       if (result.success) {
-        setFolders(result.data || []);
+        const data = result.data || [];
+        setFolders(data);
+        setHasMore(data.length >= PAGE_SIZE);
       } else {
         customToast.error("Failed to Load", result.error || "Could not retrieve folder listing.");
+        setHasMore(false);
       }
     } catch (err: any) {
       customToast.error("Error", err.message || "An unexpected error occurred.");
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchInput), 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPageRef.current + 1;
+      const result = await folderService.list(undefined, nextPage, PAGE_SIZE);
+      if (result.success) {
+        const newData = result.data || [];
+        if (newData.length > 0) {
+          currentPageRef.current = nextPage;
+          setFolders((prev) => [...prev, ...newData]);
+          setHasMore(newData.length >= PAGE_SIZE);
+        } else {
+          setHasMore(false);
+        }
+      } else {
+        setHasMore(false);
+      }
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMore, loadingMore, loading]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   useEffect(() => {
     fetchFolders();
@@ -139,15 +198,15 @@ export default function StoragePage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search folders by name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9 h-10 rounded-xl bg-background/50 border-border/60 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-sm w-full"
           />
         </div>
         <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
             <FolderOpen className="h-4 w-4 text-primary" />
-            <span>{folders.length} Folders</span>
+            <span>{folders.length} Loaded</span>
           </div>
           <span className="h-3 w-px bg-border/40" />
           <div className="flex items-center gap-1.5">
@@ -186,8 +245,12 @@ export default function StoragePage() {
             variant="outline"
             className="mt-5 rounded-xl border-border/80 hover:bg-muted cursor-pointer"
             onClick={() => {
-              if (searchQuery) setSearchQuery("");
-              else setCreateModalOpen(true);
+              if (searchQuery || searchInput) {
+                setSearchQuery("");
+                setSearchInput("");
+              } else {
+                setCreateModalOpen(true);
+              }
             }}
           >
             {searchQuery ? "Clear Search Filter" : "Create First Folder"}
@@ -206,6 +269,40 @@ export default function StoragePage() {
               onDelete={() => triggerDelete(folder)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Infinite Scroll Sentinel */}
+      {!loading && hasMore && (
+        <div ref={sentinelRef} className="flex justify-center py-4">
+          {loadingMore && (
+            <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+          )}
+        </div>
+      )}
+
+      {/* Pagination Bar */}
+      {!loading && folders.length > 0 && hasMore && (
+        <div className="flex items-center justify-between p-4 rounded-xl border border-border/40 bg-card text-xs font-semibold">
+          <p className="text-muted-foreground">
+            Showing {folders.length} folders — Page {Math.ceil(folders.length / PAGE_SIZE)}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasMore || loadingMore}
+            onClick={loadMore}
+            className="h-8 rounded-lg cursor-pointer text-xs"
+          >
+            {loadingMore ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              "Load More"
+            )}
+          </Button>
         </div>
       )}
 

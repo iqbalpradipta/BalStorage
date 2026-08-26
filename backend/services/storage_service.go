@@ -9,10 +9,10 @@ import (
 )
 
 type DashboardStats struct {
-	TotalFolders      int                    `json:"total_folders"`
-	TotalFiles        int                    `json:"total_files"`
-	TotalSize         int64                  `json:"total_size"`
-	Tier              model.TierInfo         `json:"tier"`
+	TotalFolders      int                     `json:"total_folders"`
+	TotalFiles        int                     `json:"total_files"`
+	TotalSize         int64                   `json:"total_size"`
+	Tier              model.TierInfo          `json:"tier"`
 	CategoryBreakdown map[string]CatBreakdown `json:"category_breakdown"`
 }
 
@@ -57,21 +57,29 @@ func (s *storageService) GetDashboardStats(userID string) (*DashboardStats, erro
 		tierInfo = model.Tiers[model.TierStandard]
 	}
 
-	folders, _ := s.folderRepo.FindByUserID(userID)
-	files, total, _ := s.fileRepo.FindByUserID(userID, 1, 10000)
+	folders, err := s.folderRepo.FindByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
 
-	catBreakdown := make(map[string]CatBreakdown)
-	for _, f := range files {
-		cat := getCategoryFromMime(f.MimeType)
-		cb := catBreakdown[cat]
-		cb.Size += f.Size
-		cb.Count++
-		catBreakdown[cat] = cb
+	totalFiles, err := s.fileRepo.CountByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rawBreakdown, err := s.fileRepo.GetCategoryBreakdown(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	catBreakdown := make(map[string]CatBreakdown, len(rawBreakdown))
+	for cat, cb := range rawBreakdown {
+		catBreakdown[cat] = CatBreakdown{Size: cb.Size, Count: int(cb.Count)}
 	}
 
 	return &DashboardStats{
 		TotalFolders:      len(folders),
-		TotalFiles:        int(total),
+		TotalFiles:        int(totalFiles),
 		TotalSize:         user.StorageUsed,
 		Tier:              tierInfo,
 		CategoryBreakdown: catBreakdown,
@@ -123,19 +131,4 @@ func (s *storageService) SubStorageUsed(userID string, bytes int64) error {
 		user.StorageUsed = 0
 	}
 	return s.userRepo.Update(user)
-}
-
-func getCategoryFromMime(mime string) string {
-	switch {
-	case len(mime) >= 6 && mime[:6] == "image/":
-		return "image"
-	case len(mime) >= 6 && mime[:6] == "video/":
-		return "video"
-	case len(mime) >= 6 && mime[:6] == "audio/":
-		return "audio"
-	case mime == "application/pdf" || mime == "text/plain" || len(mime) >= 12 && mime[:12] == "application/":
-		return "document"
-	default:
-		return "other"
-	}
 }

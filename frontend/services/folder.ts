@@ -15,18 +15,34 @@ interface ApiResponse<T> {
   data: T;
 }
 
+interface ListResponse {
+  data: Folder[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
 interface ApiError {
   status: number;
   message: string;
 }
 
 export const folderService = {
-  async list(parentId?: string): Promise<{ success: boolean; data: Folder[]; error?: string }> {
+  async list(parentId?: string, page = 1, limit = 50, search = ""): Promise<{ success: boolean; data: Folder[]; pagination?: { page: number; limit: number; total: number }; error?: string }> {
     try {
       const params: Record<string, string> = {};
       if (parentId) params.parent_id = parentId;
-      const response = (await apiClient.get("v1/folders", { params })) as unknown as ApiResponse<Folder[]>;
-      return { success: true, data: response.data || [] };
+      params.page = String(page);
+      params.limit = String(limit);
+      if (search) params.search = search;
+      const response = (await apiClient.get("v1/folders", { params })) as unknown as ApiResponse<ListResponse>;
+      return {
+        success: true,
+        data: response.data?.data || [],
+        pagination: response.data?.pagination,
+      };
     } catch (error) {
       const apiError = error as ApiError;
       return { success: false, data: [], error: apiError.message || "Failed to fetch folders" };

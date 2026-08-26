@@ -18,7 +18,7 @@ const (
 
 type FolderService interface {
 	Create(userID string, input model.CreateFolderInput) (*model.Folder, error)
-	List(userID string, parentID *string) ([]model.Folder, error)
+	List(userID string, parentID *string, page, limit int, search string) ([]model.Folder, int64, error)
 	GetByID(id, userID string) (*model.Folder, error)
 	Update(id, userID string, input model.UpdateFolderInput) (*model.Folder, error)
 	Delete(id, userID string) error
@@ -105,10 +105,10 @@ func (s *folderService) Create(userID string, input model.CreateFolderInput) (*m
 	return folder, nil
 }
 
-func (s *folderService) List(userID string, parentID *string) ([]model.Folder, error) {
-	folders, err := s.folderRepo.FindByUserIDAndParentID(userID, parentID)
+func (s *folderService) List(userID string, parentID *string, page, limit int, search string) ([]model.Folder, int64, error) {
+	folders, total, err := s.folderRepo.FindByUserIDAndParentID(userID, parentID, page, limit, strings.TrimSpace(search))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	for i := range folders {
@@ -117,7 +117,7 @@ func (s *folderService) List(userID string, parentID *string) ([]model.Folder, e
 		folders[i].FileCount = fileCount + subFolderCount
 	}
 
-	return folders, nil
+	return folders, total, nil
 }
 
 func (s *folderService) GetByID(id, userID string) (*model.Folder, error) {
@@ -409,4 +409,3 @@ func normalizeDiscordChannelName(name string) string {
 	}
 	return result
 }
-

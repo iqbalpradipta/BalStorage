@@ -12,6 +12,8 @@ type FileRepository interface {
 	FindByID(id string) (*model.File, error)
 	FindByFolderID(folderID string, page, limit int) ([]model.File, int64, error)
 	FindByUserID(userID string, page, limit int) ([]model.File, int64, error)
+	CountByUserID(userID string) (int64, error)
+	GetCategoryBreakdown(userID string) (map[string]CategoryCount, error)
 	Create(file *model.File) error
 	Update(file *model.File) error
 	Delete(id string) error
@@ -21,6 +23,11 @@ type FileRepository interface {
 	ForceDelete(id string) error
 	ForceDeleteByIDs(ids []string) error
 	CountByFolderID(folderID string) (int64, error)
+}
+
+type CategoryCount struct {
+	Size  int64 `json:"size"`
+	Count int64 `json:"count"`
 }
 
 type fileRepository struct {
@@ -66,6 +73,44 @@ func (r *fileRepository) FindByUserID(userID string, page, limit int) ([]model.F
 	offset := (page - 1) * limit
 	err := q.Offset(offset).Limit(limit).Order("created_at DESC").Find(&files).Error
 	return files, total, err
+}
+
+func (r *fileRepository) CountByUserID(userID string) (int64, error) {
+	var total int64
+	err := r.db.Model(&model.File{}).Where("user_id = ?", userID).Count(&total).Error
+	return total, err
+}
+
+func (r *fileRepository) GetCategoryBreakdown(userID string) (map[string]CategoryCount, error) {
+	var rows []struct {
+		Category string
+		Size     int64
+		Count    int64
+	}
+
+	err := r.db.Model(&model.File{}).
+		Select(`
+			CASE
+				WHEN mime_type LIKE 'image/%' THEN 'image'
+				WHEN mime_type LIKE 'video/%' THEN 'video'
+				WHEN mime_type LIKE 'audio/%' THEN 'audio'
+				WHEN mime_type = 'application/pdf' OR mime_type LIKE 'text/%' OR mime_type LIKE 'application/%' THEN 'document'
+				ELSE 'other'
+			END AS category,
+			COALESCE(SUM(size), 0) AS size,
+			COUNT(*) AS count`).
+		Where("user_id = ?", userID).
+		Group("category").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	breakdown := make(map[string]CategoryCount, len(rows))
+	for _, row := range rows {
+		breakdown[row.Category] = CategoryCount{Size: row.Size, Count: row.Count}
+	}
+	return breakdown, nil
 }
 
 func (r *fileRepository) Create(file *model.File) error {
